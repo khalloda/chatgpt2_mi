@@ -72,7 +72,7 @@ final class QuotesController extends Controller
 
             $pdo->commit();
             flash_set('success', 'Quote created and stock reserved.');
-            redirect('/quotes/view?id=' . $quoteId);
+            redirect('/quotes/show?id=' . $quoteId);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             flash_set('error', 'Error: ' . $e->getMessage());
@@ -80,7 +80,7 @@ final class QuotesController extends Controller
         }
     }
 
-    public function view(): void
+    public function show(): void
     {
         require_auth();
         $id = (int)($_GET['id'] ?? 0);
@@ -109,7 +109,7 @@ final class QuotesController extends Controller
             $pdo->prepare('UPDATE quotes SET status="cancelled" WHERE id=?')->execute([$id]);
             $pdo->commit();
             flash_set('success','Quote cancelled and reservation released.');
-            redirect('/quotes/view?id='.$id);
+            redirect('/quotes/show?id='.$id);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             flash_set('error','Error: '.$e->getMessage());
@@ -135,7 +135,7 @@ final class QuotesController extends Controller
             $pdo->prepare('UPDATE quotes SET status="expired" WHERE id=?')->execute([$id]);
             $pdo->commit();
             flash_set('success','Quote marked as expired and reservation released.');
-            redirect('/quotes/view?id='.$id);
+            redirect('/quotes/show?id='.$id);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             flash_set('error','Error: '.$e->getMessage());

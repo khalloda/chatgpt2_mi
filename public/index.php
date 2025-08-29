@@ -76,7 +76,7 @@ $router->post('/customers/delete', 'customerscontroller@destroy');
 $router->get('/quotes', 'quotescontroller@index');
 $router->get('/quotes/create', 'quotescontroller@create');
 $router->post('/quotes', 'quotescontroller@store');
-$router->get('/quotes/view', 'quotescontroller@view');
+$router->get('/quotes/show', 'quotescontroller@show');
 $router->post('/quotes/cancel', 'quotescontroller@cancel');
 $router->post('/quotes/expire', 'quotescontroller@expire');
 

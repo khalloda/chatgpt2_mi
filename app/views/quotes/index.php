@@ -27,7 +27,7 @@ use function App\Core\flash_get;
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;text-align:right;"><?= number_format((float)$q['total'],2) ?></td>
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;"><?= htmlspecialchars($q['status'], ENT_QUOTES, 'UTF-8') ?></td>
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;">
-            <a href="<?= base_url('/quotes/view?id='.(int)$q['id']) ?>">View</a>
+            <a href="<?= base_url('/quotes/show?id='.(int)$q['id']) ?>">View</a>
           </td>
         </tr>
       <?php endforeach; ?>
