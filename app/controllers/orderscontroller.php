@@ -4,6 +4,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Models\SalesOrder;
 use function App\Core\require_auth;
+use function App\Core\redirect;
 
 final class OrdersController extends Controller
 {
@@ -12,7 +13,7 @@ final class OrdersController extends Controller
     $this->view('orders/index', ['items'=>SalesOrder::all()]);
   }
 
-  public function view(): void {
+  public function show(): void {
     require_auth();
     $id=(int)($_GET['id']??0);
     $items = SalesOrder::items($id);

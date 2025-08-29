@@ -83,6 +83,6 @@ $router->post('/quotes/convert', 'quotescontroller@convert');
 
 // orders
 $router->get('/orders', 'orderscontroller@index');
-$router->get('/orders/view', 'orderscontroller@view');
+$router->get('/orders/show', 'orderscontroller@view');
 
 $router->dispatch();

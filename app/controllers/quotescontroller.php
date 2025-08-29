@@ -217,7 +217,7 @@ private function productPrice(int $id): float
         $pdo->prepare('UPDATE quotes SET status="ordered" WHERE id=?')->execute([$id]);
         $pdo->commit();
         flash_set('success','Converted to Sales Order ' . $soNo . ' and stock deducted.');
-        redirect('/orders/view?id='.$soId);
+        redirect('/orders/show?id='.$soId);
     } catch (\Throwable $e) {
         $pdo->rollBack();
         flash_set('error','Convert failed: '.$e->getMessage());
