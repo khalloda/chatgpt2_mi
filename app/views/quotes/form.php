@@ -39,7 +39,6 @@ use function App\Core\csrf_field;
               <select name="product_id[]" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
                 <option value="">— select —</option>
                 <?php foreach ($products as $p): ?>
-                  <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?></option>
 				  <option value="<?= (int)$p['id'] ?>" data-price="<?= htmlspecialchars((string)$p['price'], ENT_QUOTES, 'UTF-8') ?>">
       <?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>
     </option>
