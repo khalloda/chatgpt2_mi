@@ -46,4 +46,22 @@ $router->get('/models/edit', 'modelscontroller@edit');
 $router->post('/models/update', 'modelscontroller@update');
 $router->post('/models/delete', 'modelscontroller@destroy');
 
+// warehouses
+$router->get('/warehouses', 'warehousescontroller@index');
+$router->get('/warehouses/create', 'warehousescontroller@create');
+$router->post('/warehouses', 'warehousescontroller@store');
+$router->get('/warehouses/edit', 'warehousescontroller@edit');
+$router->post('/warehouses/update', 'warehousescontroller@update');
+$router->post('/warehouses/delete', 'warehousescontroller@destroy');
+
+// products
+$router->get('/products', 'productscontroller@index');
+$router->get('/products/create', 'productscontroller@create');
+$router->post('/products', 'productscontroller@store');
+$router->get('/products/edit', 'productscontroller@edit');
+$router->post('/products/update', 'productscontroller@update');
+$router->post('/products/delete', 'productscontroller@destroy');
+$router->get('/products/stock', 'productscontroller@stock');
+$router->post('/products/stock', 'productscontroller@savestock');
+
 $router->dispatch();
