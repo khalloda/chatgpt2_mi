@@ -40,6 +40,9 @@ use function App\Core\csrf_field;
                 <option value="">— select —</option>
                 <?php foreach ($products as $p): ?>
                   <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?></option>
+				  <option value="<?= (int)$p['id'] ?>" data-price="<?= htmlspecialchars((string)$p['price'], ENT_QUOTES, 'UTF-8') ?>">
+      <?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>
+    </option>
                 <?php endforeach; ?>
               </select>
             </td>
@@ -65,12 +68,43 @@ use function App\Core\csrf_field;
     </div>
   </form>
 
-  <script>
-    document.getElementById('addrow').addEventListener('click', function(){
-      const rows=document.getElementById('rows');
-      const tr=document.createElement('tr');
-      tr.innerHTML = rows.children[0].innerHTML;
-      rows.appendChild(tr);
-    });
-  </script>
+<script>
+(function () {
+  const rows = document.getElementById('rows');
+
+  function setPriceFromProduct(selectEl) {
+    const tr = selectEl.closest('tr');
+    const priceInput = tr.querySelector('input[name="price[]"]');
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const p = opt && opt.dataset.price ? parseFloat(opt.dataset.price) : 0;
+    // only overwrite when empty or zero, so manual edits are respected
+    const cur = parseFloat(priceInput.value || '0');
+    if (!cur || cur === 0) priceInput.value = (isNaN(p) ? 0 : p).toFixed(2);
+  }
+
+  // delegate change events for any current/future rows
+  rows.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'product_id[]') {
+      setPriceFromProduct(e.target);
+    }
+  });
+
+  // Add row button – clone first row, but clear inputs
+  const addBtn = document.getElementById('addrow');
+  addBtn.addEventListener('click', function () {
+    const tr0 = rows.children[0];
+    const tr = tr0.cloneNode(true);
+    // reset fields
+    tr.querySelector('select[name="product_id[]"]').value = '';
+    tr.querySelector('select[name="warehouse_id[]"]').value = '';
+    tr.querySelector('input[name="qty[]"]').value = '0';
+    tr.querySelector('input[name="price[]"]').value = '0.00';
+    rows.appendChild(tr);
+  });
+
+  // initialize existing rows (fill price if 0)
+  [...rows.querySelectorAll('select[name="product_id[]"]')].forEach(setPriceFromProduct);
+})();
+</script>
+
 </section>

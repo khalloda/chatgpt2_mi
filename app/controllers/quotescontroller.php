@@ -43,7 +43,13 @@ final class QuotesController extends Controller
         $tax  = (float)($_POST['tax_rate'] ?? 0);
         $exp  = (string)($_POST['expires_at'] ?? '');
         $qs   = $this->readItems();
-
+// ensure price defaults from product when not provided or zero
+foreach ($qs as &$q) {
+    if (empty($q['price']) || (float)$q['price'] <= 0) {
+        $q['price'] = $this->productPrice((int)$q['product_id']);
+    }
+}
+unset($q);
         if ($cust<=0 || !$qs) { flash_set('error','Customer and at least one line item are required.'); redirect('/quotes/create'); }
 
         $pdo = DB::conn();
@@ -146,9 +152,20 @@ final class QuotesController extends Controller
     private function productOptions(): array
     {
         // minimal product list (id, display)
-        $sql = "SELECT p.id, CONCAT(p.code, ' — ', p.name) AS label FROM products p ORDER BY p.name";
-        return DB::conn()->query($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $sql = "SELECT p.id,
+                   CONCAT(p.code, ' — ', p.name) AS label,
+                   p.price
+            FROM products p
+            ORDER BY p.name";
+    return DB::conn()->query($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
+
+private function productPrice(int $id): float
+{
+    $st = DB::conn()->prepare('SELECT price FROM products WHERE id = ?');
+    $st->execute([$id]);
+    return (float)$st->fetchColumn();
+}
 
     private function readItems(): array
     {
