@@ -64,4 +64,20 @@ $router->post('/products/delete', 'productscontroller@destroy');
 $router->get('/products/stock', 'productscontroller@stock');
 $router->post('/products/stock', 'productscontroller@savestock');
 
+// customers
+$router->get('/customers', 'customerscontroller@index');
+$router->get('/customers/create', 'customerscontroller@create');
+$router->post('/customers', 'customerscontroller@store');
+$router->get('/customers/edit', 'customerscontroller@edit');
+$router->post('/customers/update', 'customerscontroller@update');
+$router->post('/customers/delete', 'customerscontroller@destroy');
+
+// quotes
+$router->get('/quotes', 'quotescontroller@index');
+$router->get('/quotes/create', 'quotescontroller@create');
+$router->post('/quotes', 'quotescontroller@store');
+$router->get('/quotes/view', 'quotescontroller@view');
+$router->post('/quotes/cancel', 'quotescontroller@cancel');
+$router->post('/quotes/expire', 'quotescontroller@expire');
+
 $router->dispatch();

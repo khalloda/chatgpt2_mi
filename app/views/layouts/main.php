@@ -38,7 +38,9 @@ use function App\Core\flash_get;
 		  <a href="<?= base_url('/makes') ?>">Makes</a> ·
 		  <a href="<?= base_url('/models') ?>">Models</a> ·
 		  <a href="<?= base_url('/warehouses') ?>">Warehouses</a> ·
-		  <a href="<?= base_url('/products') ?>">Products</a>
+		  <a href="<?= base_url('/products') ?>">Products</a> ·
+		  <a href="<?= base_url('/customers') ?>">Customers</a> ·
+		  <a href="<?= base_url('/quotes') ?>">Quotes</a>
 
         </nav>
       </div>

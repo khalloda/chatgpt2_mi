@@ -105,4 +105,15 @@ final class Product
             $ins->execute([$productId, (int)$wid, $on, $res]);
         }
     }
+	
+	public static function adjustReserved(int $productId, int $warehouseId, int $delta): void
+	{
+    $pdo = DB::conn();
+    // upsert then clamp at >= 0
+    $pdo->prepare('INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved)
+                   VALUES (?, ?, 0, ?)
+                   ON DUPLICATE KEY UPDATE qty_reserved = GREATEST(0, qty_reserved + VALUES(qty_reserved))')
+        ->execute([$productId, $warehouseId, $delta]);
+	}
+
 }
