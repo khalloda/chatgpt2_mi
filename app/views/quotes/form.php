@@ -20,45 +20,64 @@ use function App\Core\csrf_field;
     </label>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-      <label><div>Tax %</div><input type="number" step="0.01" name="tax_rate" value="0" style="padding:10px;border:1px solid #ddd;border-radius:8px;"></label>
+      <label><div>Tax %</div><input id="tax_rate" type="number" step="0.01" name="tax_rate" value="0"
+         style="padding:10px;border:1px solid #ddd;border-radius:8px;"></label>
       <label><div>Expires at</div><input type="date" name="expires_at" style="padding:10px;border:1px solid #ddd;border-radius:8px;"></label>
     </div>
 
     <h3>Items</h3>
     <table style="width:100%;border-collapse:collapse;">
       <thead><tr>
-        <th style="text-align:left;border-bottom:1px solid #eee;padding:8px;">Product</th>
-        <th style="text-align:left;border-bottom:1px solid #eee;padding:8px;">Warehouse</th>
-        <th style="text-align:right;border-bottom:1px solid #eee;padding:8px;">Qty</th>
-        <th style="text-align:right;border-bottom:1px solid #eee;padding:8px;">Price</th>
-      </tr></thead>
+  <th style="text-align:left;border-bottom:1px solid #eee;padding:8px;">Product</th>
+  <th style="text-align:left;border-bottom:1px solid #eee;padding:8px;">Warehouse</th>
+  <th style="text-align:right;border-bottom:1px solid #eee;padding:8px;">Qty</th>
+  <th style="text-align:right;border-bottom:1px solid #eee;padding:8px;">Unit Price</th>
+  <th style="text-align:right;border-bottom:1px solid #eee;padding:8px;">Line Total</th>
+</tr></thead>
       <tbody id="rows">
         <?php for ($i=0; $i<$item_rows; $i++): ?>
-          <tr>
-            <td style="padding:6px;">
-              <select name="product_id[]" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
-                <option value="">— select —</option>
-                <?php foreach ($products as $p): ?>
-				  <option value="<?= (int)$p['id'] ?>" data-price="<?= htmlspecialchars((string)$p['price'], ENT_QUOTES, 'UTF-8') ?>">
-      <?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>
-    </option>
-                <?php endforeach; ?>
-              </select>
-            </td>
-            <td style="padding:6px;">
-              <select name="warehouse_id[]" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
-                <option value="">— select —</option>
-                <?php foreach ($warehouses as $w): ?>
-                  <option value="<?= (int)$w['id'] ?>"><?= htmlspecialchars($w['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                <?php endforeach; ?>
-              </select>
-            </td>
-            <td style="padding:6px;text-align:right;"><input type="number" min="0" name="qty[]" value="0" style="width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;text-align:right;"></td>
-            <td style="padding:6px;text-align:right;"><input type="number" step="0.01" min="0" name="price[]" value="0.00" style="width:130px;padding:8px;border:1px solid #ddd;border-radius:6px;text-align:right;"></td>
-          </tr>
+<tr>
+  <td style="padding:6px;">
+    <select name="product_id[]" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+      <option value="">— select —</option>
+      <?php foreach ($products as $p): ?>
+        <option value="<?= (int)$p['id'] ?>" data-price="<?= htmlspecialchars((string)$p['price'], ENT_QUOTES, 'UTF-8') ?>">
+          <?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+  </td>
+  <td style="padding:6px;">
+    <select name="warehouse_id[]" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+      <option value="">— select —</option>
+      <?php foreach ($warehouses as $w): ?>
+        <option value="<?= (int)$w['id'] ?>"><?= htmlspecialchars($w['name'], ENT_QUOTES, 'UTF-8') ?></option>
+      <?php endforeach; ?>
+    </select>
+  </td>
+  <td style="padding:6px;text-align:right;">
+    <input type="number" min="0" name="qty[]" value="0"
+           style="width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;text-align:right;">
+  </td>
+  <td style="padding:6px;text-align:right;">
+    <input type="number" step="0.01" min="0" name="price[]" value="0.00"
+           style="width:130px;padding:8px;border:1px solid #ddd;border-radius:6px;text-align:right;">
+  </td>
+  <td style="padding:6px;text-align:right;">
+    <input type="text" value="0.00" class="line-total"
+           style="width:130px;padding:8px;border:1px solid #eee;background:#fafafa;border-radius:6px;text-align:right;"
+           readonly>
+  </td>
+</tr>
+
         <?php endfor; ?>
       </tbody>
     </table>
+	<div style="display:flex;gap:20px;justify-content:flex-end;margin-top:10px;">
+  <div>Subtotal: <strong><span id="subtotal">0.00</span></strong></div>
+  <div>Tax: <strong><span id="taxamount">0.00</span></strong></div>
+  <div>Total: <strong><span id="grandtotal">0.00</span></strong></div>
+</div>
     <button type="button" id="addrow" style="margin-top:8px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#f9f9fb;cursor:pointer;">+ Add row</button>
 
     <div style="display:flex;gap:10px;margin-top:12px;">
