@@ -14,10 +14,10 @@ final class HomeController extends Controller
         $dbError = null;
 
         try {
-            $dbOk = DB::conn()->query('SELECT 1')->fetchColumn() === '1';
+            $dbOk = ((int) DB::conn()->query('SELECT 1')->fetchColumn() === 1);
         } catch (\Throwable $e) {
             $dbOk = false;
-            $dbError = $e->getMessage(); // safe: credentials not included
+            $dbError = $e->getMessage(); // safe: no credentials
         }
 
         $this->view('home/index', [
