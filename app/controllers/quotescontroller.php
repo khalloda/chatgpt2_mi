@@ -147,7 +147,7 @@ final class QuotesController extends Controller
     {
         // minimal product list (id, display)
         $sql = "SELECT p.id, CONCAT(p.code, ' — ', p.name) AS label FROM products p ORDER BY p.name";
-        return DB::conn()->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return DB::conn()->query($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
     private function readItems(): array

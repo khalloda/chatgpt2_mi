@@ -5,37 +5,47 @@ namespace App\Models;
 use App\Core\DB;
 use PDO;
 
-final class Customer
+final class Quote
 {
-    public static function all(): array {
-        $st = DB::conn()->query('SELECT id, name, phone, email FROM customers ORDER BY name');
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    public static function nextNumber(): string
+    {
+        $y = date('Y');
+        $st = DB::conn()->prepare(
+            "SELECT LPAD(COALESCE(MAX(CAST(SUBSTRING(quote_no, 6) AS UNSIGNED)),0)+1,4,'0')
+             FROM quotes WHERE quote_no LIKE CONCAT('Q',$y,'-%')"
+        );
+        $st->execute();
+        $seq = (string)$st->fetchColumn();
+        if ($seq === '') $seq = '0001';
+        return 'Q' . $y . '-' . $seq;
     }
-    public static function find(int $id): ?array {
-        $st = DB::conn()->prepare('SELECT * FROM customers WHERE id=? LIMIT 1');
+
+    public static function all(): array
+    {
+        $sql = "SELECT q.*, c.name AS customer_name
+                FROM quotes q
+                JOIN customers c ON c.id=q.customer_id
+                ORDER BY q.id DESC";
+        return DB::conn()->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public static function find(int $id): ?array
+    {
+        $st = DB::conn()->prepare('SELECT * FROM quotes WHERE id=? LIMIT 1');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         return $r ?: null;
     }
-    public static function create(array $d): int {
-        $st = DB::conn()->prepare('INSERT INTO customers (name, phone, email, address) VALUES (?,?,?,?)');
-        $st->execute([$d['name'], $d['phone'], $d['email'], $d['address']]);
-        return (int)DB::conn()->lastInsertId();
-    }
-    public static function update(int $id, array $d): void {
-        $st = DB::conn()->prepare('UPDATE customers SET name=?, phone=?, email=?, address=? WHERE id=?');
-        $st->execute([$d['name'], $d['phone'], $d['email'], $d['address'], $id]);
-    }
-    public static function delete(int $id): bool {
-        // allow delete if no quotes
-        $q = DB::conn()->prepare('SELECT COUNT(*) FROM quotes WHERE customer_id=?');
-        $q->execute([$id]);
-        if ((int)$q->fetchColumn() > 0) return false;
-        $st = DB::conn()->prepare('DELETE FROM customers WHERE id=?');
-        return $st->execute([$id]);
-    }
-    public static function options(): array {
-        $st = DB::conn()->query('SELECT id, name FROM customers ORDER BY name');
+
+    public static function items(int $quoteId): array
+    {
+        $sql = "SELECT qi.*, p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
+                FROM quote_items qi
+                JOIN products p ON p.id=qi.product_id
+                JOIN warehouses w ON w.id=qi.warehouse_id
+                WHERE qi.quote_id=? ORDER BY qi.id";
+        $st = DB::conn()->prepare($sql);
+        $st->execute([$quoteId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 }
