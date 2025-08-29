@@ -4,20 +4,26 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Core\DB;
+use App\Core\Env;
 
 final class HomeController extends Controller
 {
     public function index(): void
     {
-        // ping database to verify credentials (safe SELECT 1)
+        $dbOk = false;
+        $dbError = null;
+
         try {
-            $ok = DB::conn()->query('SELECT 1')->fetchColumn() === '1';
+            $dbOk = DB::conn()->query('SELECT 1')->fetchColumn() === '1';
         } catch (\Throwable $e) {
-            $ok = false;
+            $dbOk = false;
+            $dbError = $e->getMessage(); // safe: credentials not included
         }
 
         $this->view('home/index', [
-            'db_ok' => $ok,
+            'db_ok'    => $dbOk,
+            'db_error' => $dbError,
+            'debug'    => Env::get('APP_DEBUG', 'false') === 'true',
         ]);
     }
 }
