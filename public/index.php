@@ -13,5 +13,10 @@ $router->get('/health', function () {
     echo 'OK';
 });
 
-// 404 handler happens in dispatch if no match
+// auth routes
+$router->get('/login', 'authcontroller@loginform');
+$router->post('/login', 'authcontroller@login');
+$router->post('/logout', 'authcontroller@logout');
+
+// dispatch
 $router->dispatch();
