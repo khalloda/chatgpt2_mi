@@ -116,4 +116,16 @@ final class Product
         ->execute([$productId, $warehouseId, $delta]);
 	}
 
+public static function consumeFromReservation(int $productId, int $warehouseId, int $qty): void
+{
+    // qty_reserved -= qty, qty_on_hand -= qty (clamped at >=0), single atomic statement
+    DB::conn()->prepare("
+      INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved)
+      VALUES (?, ?, 0, 0)
+      ON DUPLICATE KEY UPDATE
+        qty_reserved = GREATEST(0, qty_reserved - ?),
+        qty_on_hand = GREATEST(0, qty_on_hand - ?)
+    ")->execute([$productId, $warehouseId, $qty, $qty]);
+}
+
 }

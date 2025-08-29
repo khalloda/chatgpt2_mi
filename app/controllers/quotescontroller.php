@@ -8,6 +8,7 @@ use App\Models\Quote;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Warehouse;
+use App\Models\SalesOrder;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -186,4 +187,41 @@ private function productPrice(int $id): float
         }
         return $rows;
     }
+	
+	public function convert(): void
+{
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
+    $id = (int)($_POST['id'] ?? 0);
+    $q  = Quote::find($id);
+    if (!$q || $q['status'] !== 'sent') { flash_set('error','Only sent quotes can be converted.'); redirect('/quotes'); }
+
+    $pdo = DB::conn(); $pdo->beginTransaction();
+    try {
+        $items = Quote::items($id);
+        $soNo = SalesOrder::nextNumber();
+        $insSo = $pdo->prepare("INSERT INTO sales_orders (so_no, quote_id, customer_id, status, tax_rate, subtotal, tax_amount, total)
+                                VALUES (?,?,?,?,?,?,?,?)");
+        $insSo->execute([$soNo, $id, $q['customer_id'], 'open', $q['tax_rate'], $q['subtotal'], $q['tax_amount'], $q['total']]);
+        $soId = (int)$pdo->lastInsertId();
+
+        $insItem = $pdo->prepare("INSERT INTO sales_order_items (sales_order_id, product_id, warehouse_id, qty, price, line_total)
+                                  VALUES (?,?,?,?,?,?)");
+        foreach ($items as $it) {
+            $qty = (int)$it['qty'];
+            $insItem->execute([$soId, (int)$it['product_id'], (int)$it['warehouse_id'], $qty, (float)$it['price'], (float)$it['line_total']]);
+            // move from reserved to consumed
+            Product::consumeFromReservation((int)$it['product_id'], (int)$it['warehouse_id'], $qty);
+        }
+
+        $pdo->prepare('UPDATE quotes SET status="ordered" WHERE id=?')->execute([$id]);
+        $pdo->commit();
+        flash_set('success','Converted to Sales Order ' . $soNo . ' and stock deducted.');
+        redirect('/orders/view?id='.$soId);
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        flash_set('error','Convert failed: '.$e->getMessage());
+        redirect('/quotes/show?id='.$id);
+    }
+}
 }

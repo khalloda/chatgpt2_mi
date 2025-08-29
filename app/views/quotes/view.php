@@ -41,6 +41,12 @@ use function App\Core\csrf_field;
       <button type="submit" style="margin-top:10px;background:none;border:1px solid #999;color:#333;border-radius:8px;padding:8px 12px;cursor:pointer;">Mark Expired</button>
     </form>
     <!-- Convert to Order button will arrive in Phase 4B -->
+	<form method="post" action="<?= base_url('/quotes/convert') ?>" style="display:inline;margin-left:8px;">
+  <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$q['id'] ?>">
+  <button type="submit" style="margin-top:10px;background:#0a0;border:1px solid #0a0;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;">
+    Convert to Order
+  </button>
+</form>
   <?php endif; ?>
 
   <p style="margin-top:12px;"><a href="<?= base_url('/quotes') ?>">Back to Quotes</a></p>

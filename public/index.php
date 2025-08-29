@@ -79,5 +79,10 @@ $router->post('/quotes', 'quotescontroller@store');
 $router->get('/quotes/show', 'quotescontroller@show');
 $router->post('/quotes/cancel', 'quotescontroller@cancel');
 $router->post('/quotes/expire', 'quotescontroller@expire');
+$router->post('/quotes/convert', 'quotescontroller@convert');
+
+// orders
+$router->get('/orders', 'orderscontroller@index');
+$router->get('/orders/view', 'orderscontroller@view');
 
 $router->dispatch();
