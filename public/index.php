@@ -30,4 +30,20 @@ $router->get('/categories/edit', 'categoriescontroller@edit');
 $router->post('/categories/update', 'categoriescontroller@update');
 $router->post('/categories/delete', 'categoriescontroller@destroy');
 
+// makes
+$router->get('/makes', 'makescontroller@index');
+$router->get('/makes/create', 'makescontroller@create');
+$router->post('/makes', 'makescontroller@store');
+$router->get('/makes/edit', 'makescontroller@edit');
+$router->post('/makes/update', 'makescontroller@update');
+$router->post('/makes/delete', 'makescontroller@destroy');
+
+// models
+$router->get('/models', 'modelscontroller@index');
+$router->get('/models/create', 'modelscontroller@create');
+$router->post('/models', 'modelscontroller@store');
+$router->get('/models/edit', 'modelscontroller@edit');
+$router->post('/models/update', 'modelscontroller@update');
+$router->post('/models/delete', 'modelscontroller@destroy');
+
 $router->dispatch();

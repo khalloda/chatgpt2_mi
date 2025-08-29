@@ -35,6 +35,10 @@ use function App\Core\flash_get;
           <a href="<?= base_url('/') ?>">Home</a> ·
           <a href="<?= base_url('/health') ?>">Health</a> ·
           <a href="<?= base_url('/categories') ?>">Categories</a>
+		  <a href="<?= base_url('/categories') ?>">Categories</a> ·
+		  <a href="<?= base_url('/makes') ?>">Makes</a> ·
+		  <a href="<?= base_url('/models') ?>">Models</a>
+
         </nav>
       </div>
       <div>
