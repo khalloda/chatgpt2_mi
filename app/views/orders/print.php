@@ -16,6 +16,12 @@ use function App\Core\format_note_html;
     td.r, th.r {text-align:right;}
     .toolbar{margin-bottom:12px; padding:10px; border:1px solid #eee; border-radius:8px;}
     @media print{ .no-print{ display:none !important; } .toolbar{ display:none !important; } }
+	@page { size: A4; margin: 16mm; }
+@media print {
+  footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 11px; color:#666; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+}
   </style>
 </head>
 <body>
@@ -32,6 +38,18 @@ use function App\Core\format_note_html;
   </div>
 
   <header>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+  <div>
+    <div style="font-weight:700;font-size:20px;">Spare Parts Management</div>
+    <div class="muted">Address line • Phone • Email</div>
+  </div>
+  <!-- brand/logo -->
+  <div style="margin-bottom:10px;">
+    <img src="<?= base_url('/img/logo.png') ?>" alt="Logo" style="height:48px;vertical-align:middle;">
+  </div>
+  <!-- Optional logo: <img src="/public/img/logo.png" alt="Logo" style="height:48px"> -->
+</div>
+
     <h1>Sales Order <?= htmlspecialchars($o['so_no'], ENT_QUOTES, 'UTF-8') ?></h1>
     <div class="muted">Customer ID: <?= (int)$o['customer_id'] ?> • Status: <?= htmlspecialchars($o['status'], ENT_QUOTES, 'UTF-8') ?></div>
   </header>
@@ -78,5 +96,8 @@ use function App\Core\format_note_html;
       </ul>
     </section>
   <?php endif; ?>
+  <footer>Page <span class="pageNumber"></span></footer>
+<script>try{document.querySelector('.pageNumber').textContent='';}catch(e){}</script>
+
 </body>
 </html>
