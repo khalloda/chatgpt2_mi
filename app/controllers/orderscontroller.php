@@ -23,4 +23,25 @@ final class OrdersController extends Controller
     if(!$order){ $this->redirect('/orders'); return; }
     $this->view('orders/view', ['o'=>$order,'items'=>$items,'notes' => Note::for('sales_order', $id)]);
   }
+  public function printpage(): void
+{
+    require_auth();
+    $id = (int)($_GET['id'] ?? 0);
+    $includeNotes = isset($_GET['include_notes']) && $_GET['include_notes'] === '1';
+
+    // fetch one order; we used SalesOrder::all() previously, but here we’ll reuse that pattern:
+    $list  = \App\Models\SalesOrder::all();
+    $order = null; foreach ($list as $o) if ((int)$o['id'] === $id) { $order = $o; break; }
+    if (!$order) { flash_set('error','Order not found.'); redirect('/orders'); }
+
+    $items = \App\Models\SalesOrder::items($id);
+    $publicNotes = $includeNotes ? Note::publicFor('sales_order', $id) : [];
+
+    $this->view('orders/print', [
+        'o' => $order,
+        'items' => $items,
+        'public_notes' => $publicNotes,
+        'include_notes' => $includeNotes,
+    ]);
+}
 }

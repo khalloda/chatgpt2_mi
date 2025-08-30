@@ -62,4 +62,25 @@ final class NotesController extends Controller
         }
         redirect($returnTo ?: '/');
     }
+	
+	public function update(): void
+{
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/'); }
+
+    $id       = (int)($_POST['id'] ?? 0);
+    $body     = trim((string)($_POST['body'] ?? ''));
+    $isPublic = isset($_POST['is_public']) && $_POST['is_public'] ? 1 : 0;
+    $returnTo = (string)($_POST['_return'] ?? '/');
+
+    if ($id <= 0 || $body === '') {
+        flash_set('error','Note text is required.');
+        redirect($returnTo ?: '/');
+    }
+
+    Note::update($id, $body, (bool)$isPublic);
+    flash_set('success','Note updated.');
+    redirect($returnTo ?: '/');
+}
+	
 }

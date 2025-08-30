@@ -30,5 +30,5 @@ $entity_id   = (int)$o['id'];
 $notes       = $notes ?? [];
 include __DIR__ . '/../partials/notes.php';
 ?>
-  <p style="margin-top:12px;"><a href="<?= base_url('/orders') ?>">Back to Orders</a></p>
+  <p style="margin-top:12px;"><a href="<?= base_url('/orders') ?>">Back to Orders</a><a class="no-print" href="<?= base_url('/orders/print?id='.(int)$o['id']) ?>" style="margin-left:8px;">Print</a></p>
 </section>

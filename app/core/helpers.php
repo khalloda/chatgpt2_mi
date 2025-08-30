@@ -8,6 +8,37 @@ function base_url(string $path = ''): string
     return rtrim($base, '/') . '/' . ltrim($path, '/');
 }
 
+function format_note_html(string $text): string {
+    // 1) escape HTML
+    $safe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+
+    // 2) linkify http/https URLs (very conservative pattern)
+    $safe = preg_replace(
+        '~(https?://[^\s<]+)~i',
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
+        $safe
+    );
+
+    // 3) newlines -> <br>
+    return nl2br($safe, false);
+}
+
+/**
+ * Build a URL to current path with a replaced/added query param.
+ * Minimal helper for pagination/checkbox toggles.
+ */
+function url_with_query(array $pairs): string {
+    $uri  = $_SERVER['REQUEST_URI'] ?? '/';
+    $parts = parse_url($uri);
+    $path = $parts['path'] ?? '/';
+    parse_str($parts['query'] ?? '', $q);
+    foreach ($pairs as $k => $v) {
+        if ($v === null) unset($q[$k]); else $q[$k] = $v;
+    }
+    $qs = http_build_query($q);
+    return $path . ($qs ? ('?' . $qs) : '');
+}
+
 /** CSRF utilities */
 function csrf_token(): string
 {

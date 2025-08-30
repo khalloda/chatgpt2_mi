@@ -275,4 +275,24 @@ private function productLabel(int $id): string
     return (string)($st->fetchColumn() ?: ('#'.$id));
 }
 
+public function printpage(): void
+{
+    require_auth();
+    $id = (int)($_GET['id'] ?? 0);
+    $includeNotes = isset($_GET['include_notes']) && $_GET['include_notes'] === '1';
+
+    $quote = \App\Models\Quote::find($id);
+    if (!$quote) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+
+    $items = \App\Models\Quote::items($id);
+    $publicNotes = $includeNotes ? Note::publicFor('quote', $id) : [];
+
+    $this->view('quotes/print', [
+        'q' => $quote,
+        'items' => $items,
+        'public_notes' => $publicNotes,
+        'include_notes' => $includeNotes,
+    ]);
+}
+
 }

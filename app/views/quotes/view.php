@@ -54,5 +54,6 @@ $entity_id   = (int)$q['id'];
 $notes       = $notes ?? [];
 include __DIR__ . '/../partials/notes.php';
 ?>
-  <p style="margin-top:12px;"><a href="<?= base_url('/quotes') ?>">Back to Quotes</a></p>
+  <p style="margin-top:12px;"><a href="<?= base_url('/quotes') ?>">Back to Quotes</a><a class="no-print" href="<?= base_url('/quotes/print?id='.(int)$q['id']) ?>" style="margin-left:8px;">Print</a>
+</p>
 </section>

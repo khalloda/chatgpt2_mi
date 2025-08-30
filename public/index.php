@@ -87,6 +87,11 @@ $router->get('/orders/show', 'orderscontroller@show');
 
 // notes
 $router->post('/notes', 'notescontroller@store');
+$router->post('/notes/update', 'notescontroller@update');
 $router->post('/notes/delete', 'notescontroller@destroy');
+
+// printables
+$router->get('/quotes/print', 'quotescontroller@printpage'); // <-- add
+$router->get('/orders/print', 'orderscontroller@printpage'); // <-- add
 
 $router->dispatch();

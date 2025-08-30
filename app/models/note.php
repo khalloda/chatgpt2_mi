@@ -47,4 +47,12 @@ final class Note
     {
         DB::conn()->prepare('DELETE FROM notes WHERE id = ?')->execute([$id]);
     }
+	
+	public static function update(int $id, string $body, bool $isPublic): void
+{
+    DB::conn()->prepare(
+        'UPDATE notes SET body = ?, is_public = ? WHERE id = ?'
+    )->execute([$body, $isPublic ? 1 : 0, $id]);
+}
+	
 }
