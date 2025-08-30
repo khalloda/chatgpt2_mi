@@ -127,5 +127,16 @@ public static function consumeFromReservation(int $productId, int $warehouseId, 
         qty_on_hand = GREATEST(0, qty_on_hand - ?)
     ")->execute([$productId, $warehouseId, $qty, $qty]);
 }
+public static function canFulfill(int $productId, int $warehouseId, int $qty): bool
+{
+    $st = DB::conn()->prepare(
+        'SELECT qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=?'
+    );
+    $st->execute([$productId, $warehouseId]);
+    $row = $st->fetch(\PDO::FETCH_ASSOC);
+    $on  = (int)($row['qty_on_hand'] ?? 0);
+    // here we check we have enough on-hand to consume the reservation
+    return $on >= $qty;
+}
 
 }

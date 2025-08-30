@@ -44,6 +44,21 @@ final class QuotesController extends Controller
         $tax  = (float)($_POST['tax_rate'] ?? 0);
         $exp  = (string)($_POST['expires_at'] ?? '');
         $qs   = $this->readItems();
+		// Ensure we do not reserve more than available (sum duplicates per product/warehouse)
+$want = [];
+foreach ($qs as $q) {
+    $key = $q['product_id'].':'.$q['warehouse_id'];
+    $want[$key] = ($want[$key] ?? 0) + (int)$q['qty'];
+}
+foreach ($want as $key => $qty) {
+    [$pid, $wid] = array_map('intval', explode(':', $key, 2));
+    $avail = $this->availableQty($pid, $wid);
+    if ($qty > $avail) {
+        $label = $this->productLabel($pid);
+        flash_set('error', "Insufficient stock to reserve ($label @ selected warehouse). Available: $avail, Requested: $qty.");
+        redirect('/quotes/create'); // do NOT save/reserve anything
+    }
+}
 // ensure price defaults from product when not provided or zero
 foreach ($qs as &$q) {
     if (empty($q['price']) || (float)$q['price'] <= 0) {
@@ -92,8 +107,24 @@ unset($q);
         require_auth();
         $id = (int)($_GET['id'] ?? 0);
         $quote = Quote::find($id);
-        if (!$quote) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+         if (!$quote) {
+        flash_set('error', 'Quote not found.');
+        $this->view('quotes/index', ['items' => Quote::all()]); // no redirect
+        return;
+    }
         $items = Quote::items($id);
+		// preflight stock check: block if any line cannot be fulfilled
+foreach ($items as $it) {
+    $pid = (int)$it['product_id'];
+    $wid = (int)$it['warehouse_id'];
+    $q   = (int)$it['qty'];
+    if (!\App\Models\Product::canFulfill($pid, $wid, $q)) {
+        flash_set('error', 'Insufficient stock to convert ('
+            . htmlspecialchars($it['product_code'].' — '.$it['product_name'])
+            . ' @ ' . htmlspecialchars($it['warehouse_name']) . ').');
+        redirect('/quotes/show?id=' . $id);
+    }
+}
         $this->view('quotes/view', ['q'=>$quote, 'items'=>$items]);
     }
 
@@ -224,4 +255,23 @@ private function productPrice(int $id): float
         redirect('/quotes/show?id='.$id);
     }
 }
+private function availableQty(int $productId, int $warehouseId): int
+{
+    $st = DB::conn()->prepare('SELECT qty_on_hand, qty_reserved
+                               FROM product_stocks
+                               WHERE product_id=? AND warehouse_id=?');
+    $st->execute([$productId, $warehouseId]);
+    $row = $st->fetch(\PDO::FETCH_ASSOC) ?: ['qty_on_hand'=>0,'qty_reserved'=>0];
+    $on  = (int)$row['qty_on_hand'];
+    $res = (int)$row['qty_reserved'];
+    return max(0, $on - $res);
+}
+
+private function productLabel(int $id): string
+{
+    $st = DB::conn()->prepare('SELECT CONCAT(code, " — ", name) FROM products WHERE id=?');
+    $st->execute([$id]);
+    return (string)($st->fetchColumn() ?: ('#'.$id));
+}
+
 }
