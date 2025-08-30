@@ -106,4 +106,22 @@ $router->get('/payments/create', 'paymentscontroller@create');
 $router->post('/payments', 'paymentscontroller@store');
 $router->post('/payments/delete', 'paymentscontroller@destroy');
 
+// suppliers
+$router->get('/suppliers', 'supplierscontroller@index');
+$router->get('/suppliers/create', 'supplierscontroller@create');
+$router->post('/suppliers', 'supplierscontroller@store');
+$router->get('/suppliers/edit', 'supplierscontroller@edit');
+$router->post('/suppliers/update', 'supplierscontroller@update');
+$router->post('/suppliers/delete', 'supplierscontroller@destroy');
+
+// purchase orders
+$router->get('/purchaseorders', 'purchaseorderscontroller@index');
+$router->get('/purchaseorders/create', 'purchaseorderscontroller@create');
+$router->post('/purchaseorders', 'purchaseorderscontroller@store');
+$router->get('/purchaseorders/edit', 'purchaseorderscontroller@edit');
+$router->post('/purchaseorders/update', 'purchaseorderscontroller@update');
+$router->get('/purchaseorders/show', 'purchaseorderscontroller@show');
+$router->post('/purchaseorders/mark-ordered', 'purchaseorderscontroller@markordered');
+$router->get('/purchaseorders/print', 'purchaseorderscontroller@printpage');
+
 $router->dispatch();
