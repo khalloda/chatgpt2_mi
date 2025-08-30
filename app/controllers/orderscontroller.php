@@ -37,7 +37,7 @@ final class OrdersController extends Controller
     $items = \App\Models\SalesOrder::items($id);
     $publicNotes = $includeNotes ? Note::publicFor('sales_order', $id) : [];
 
-    $this->view('orders/print', [
+    $this->view_raw('orders/print', [
         'o' => $order,
         'items' => $items,
         'public_notes' => $publicNotes,

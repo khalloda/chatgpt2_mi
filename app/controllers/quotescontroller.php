@@ -287,7 +287,7 @@ public function printpage(): void
     $items = \App\Models\Quote::items($id);
     $publicNotes = $includeNotes ? Note::publicFor('quote', $id) : [];
 
-    $this->view('quotes/print', [
+    $this->view_raw('quotes/print', [
         'q' => $quote,
         'items' => $items,
         'public_notes' => $publicNotes,
