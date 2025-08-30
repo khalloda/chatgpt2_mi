@@ -20,11 +20,7 @@ function has_flash(string $type): bool
     return isset($_SESSION['flash'][$type]);
 }
 
-function redirect(string $path): void
-{
-    header('Location: ' . base_url($path));
-    exit;
-}
+
 
 function require_auth(): void
 {

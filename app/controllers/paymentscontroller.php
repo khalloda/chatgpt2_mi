@@ -52,4 +52,36 @@ final class PaymentsController extends Controller
         }
         redirect($return);
     }
+	
+	public function index(): void
+{
+    require_auth();
+    // Show latest payments with invoice and customer
+    $sql = "SELECT p.*, i.inv_no, i.id AS invoice_id, c.name AS customer_name
+            FROM invoice_payments p
+            JOIN invoices i ON i.id = p.invoice_id
+            JOIN customers c ON c.id = i.customer_id
+            ORDER BY p.id DESC
+            LIMIT 200";
+    $rows = \App\Core\DB::conn()->query($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    $this->view('payments/index', ['rows' => $rows]);
+}
+
+public function create(): void
+{
+    require_auth();
+    $invoiceId = (int)($_GET['invoice_id'] ?? 0);
+    $returnTo  = (string)($_GET['_return'] ?? '/invoices');
+    $inv = \App\Models\Invoice::find($invoiceId);
+    if (!$inv) {
+        flash_set('error', 'Invoice not found.');
+        redirect('/invoices');
+    }
+    $this->view('payments/create', [
+        'i'        => $inv,
+        'returnTo' => $returnTo ?: '/invoices/show?id='.$invoiceId,
+        // default datetime-local value: now
+        'now'      => date('Y-m-d\TH:i'),
+    ]);
+}
 }
