@@ -48,6 +48,19 @@ function redirect(string $to): void
     }
     exit;
 }
+function activity_log(string $action, string $entity_type, int $entity_id, array $meta = []): void
+{
+    try {
+        if (!isset($_SESSION)) { session_start(); }
+        $actor = $_SESSION['user']['email'] ?? 'system';
+        $pdo = DB::conn();
+        $st = $pdo->prepare("INSERT INTO activity_log (actor, action, entity_type, entity_id, meta)
+                             VALUES (?,?,?,?,?)");
+        $st->execute([$actor, $action, $entity_type, $entity_id, json_encode($meta, JSON_UNESCAPED_UNICODE)]);
+    } catch (\Throwable $e) {
+        // logging is best-effort; ignore failures
+    }
+}
 /** CSRF utilities */
 function csrf_token(): string
 {

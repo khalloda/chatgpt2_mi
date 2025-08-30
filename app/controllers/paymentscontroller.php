@@ -13,45 +13,63 @@ use App\Core\DB;
 final class PaymentsController extends Controller
 {
     public function store(): void {
-        require_auth();
-        if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/invoices'); }
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/invoices'); }
 
-        $invoiceId = (int)($_POST['invoice_id'] ?? 0);
-        $amount = (float)($_POST['amount'] ?? 0);
-        $paidAt = (string)($_POST['paid_at'] ?? '');
-        $method = trim((string)($_POST['method'] ?? 'cash'));
-        $reference = trim((string)($_POST['reference'] ?? ''));
-        $note = trim((string)($_POST['note'] ?? ''));
-        $return = (string)($_POST['_return'] ?? '/invoices');
+    $invoiceId = (int)($_POST['invoice_id'] ?? 0);
+    $amount    = (float)($_POST['amount'] ?? 0);
+    $paidAt    = (string)($_POST['paid_at'] ?? '');
+    $method    = trim((string)($_POST['method'] ?? 'cash'));
+    $reference = trim((string)($_POST['reference'] ?? ''));
+    $note      = trim((string)($_POST['note'] ?? ''));
+    $return    = (string)($_POST['_return'] ?? '/invoices');
 
-        if ($invoiceId <= 0 || $amount <= 0 || $paidAt === '') {
-            flash_set('error','Payment requires date and positive amount.');
-            redirect($return);
-        }
+    $inv = \App\Models\Invoice::find($invoiceId);
+    if (!$inv) { flash_set('error','Invoice not found.'); redirect($return); }
 
-        $st = DB::conn()->prepare("INSERT INTO invoice_payments (invoice_id, paid_at, method, reference, amount, note)
-                                   VALUES (?,?,?,?,?,?)");
-        $st->execute([$invoiceId, $paidAt, $method, $reference, $amount, $note]);
-
-        Invoice::recalcPaidAmount($invoiceId);
-
-        flash_set('success','Payment recorded.');
+    // Block edits once paid
+    if (($inv['status'] ?? '') === 'paid') {
+        flash_set('error','Invoice is fully paid; payments are locked.');
         redirect($return);
     }
 
-    public function destroy(): void {
-        require_auth();
-        if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/invoices'); }
-        $id = (int)($_POST['id'] ?? 0);
-        $invoiceId = (int)($_POST['invoice_id'] ?? 0);
-        $return = (string)($_POST['_return'] ?? '/invoices');
-        if ($id > 0) {
-            DB::conn()->prepare("DELETE FROM invoice_payments WHERE id=?")->execute([$id]);
-            if ($invoiceId > 0) Invoice::recalcPaidAmount($invoiceId);
-            flash_set('success','Payment deleted.');
-        }
+    // Prevent overpayment (cap to remaining)
+    $remaining = max(0.0, (float)$inv['total'] - (float)$inv['paid_amount']);
+    if ($remaining <= 0.0) {
+        flash_set('error','Nothing to pay; invoice is already fully paid.');
         redirect($return);
     }
+    $capped = false;
+    if ($amount > $remaining) {
+        $amount = $remaining;
+        $capped = true;
+    }
+    if ($amount <= 0.0 || $paidAt === '') {
+        flash_set('error','Payment requires a date and a positive amount.');
+        redirect($return);
+    }
+
+    $pdo = \App\Core\DB::conn();
+    $st = $pdo->prepare("INSERT INTO invoice_payments (invoice_id, paid_at, method, reference, amount, note)
+                         VALUES (?,?,?,?,?,?)");
+    $st->execute([$invoiceId, $paidAt, $method, $reference, $amount, $note]);
+    $paymentId = (int)$pdo->lastInsertId();
+
+    \App\Models\Invoice::recalcPaidAmount($invoiceId);
+
+    // Optional activity log
+    if (function_exists('\App\Core\activity_log')) {
+        \App\Core\activity_log('payment.add', 'sales_invoice', $invoiceId, [
+            'payment_id' => $paymentId,
+            'amount'     => $amount,
+            'method'     => $method,
+            'reference'  => $reference,
+        ]);
+    }
+
+    flash_set('success', $capped ? 'Payment recorded (amount capped to remaining).' : 'Payment recorded.');
+    redirect($return);
+}
 	
 	public function index(): void
 {
@@ -83,5 +101,35 @@ public function create(): void
         // default datetime-local value: now
         'now'      => date('Y-m-d\TH:i'),
     ]);
+}
+	public function destroy(): void {
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/invoices'); }
+
+    $id        = (int)($_POST['id'] ?? 0);
+    $invoiceId = (int)($_POST['invoice_id'] ?? 0);
+    $return    = (string)($_POST['_return'] ?? '/invoices');
+
+    $inv = \App\Models\Invoice::find($invoiceId);
+    if (!$inv) { flash_set('error','Invoice not found.'); redirect($return); }
+
+    // Block edits once paid
+    if (($inv['status'] ?? '') === 'paid') {
+        flash_set('error','Invoice is fully paid; payments are locked.');
+        redirect($return);
+    }
+
+    if ($id > 0) {
+        \App\Core\DB::conn()->prepare("DELETE FROM invoice_payments WHERE id=?")->execute([$id]);
+
+        \App\Models\Invoice::recalcPaidAmount($invoiceId);
+
+        if (function_exists('\App\Core\activity_log')) {
+            \App\Core\activity_log('payment.delete', 'sales_invoice', $invoiceId, ['payment_id' => $id]);
+        }
+
+        flash_set('success','Payment deleted.');
+    }
+    redirect($return);
 }
 }
