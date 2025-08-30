@@ -91,7 +91,17 @@ $router->post('/notes/update', 'notescontroller@update');
 $router->post('/notes/delete', 'notescontroller@destroy');
 
 // printables
-$router->get('/quotes/print', 'quotescontroller@printpage'); // <-- add
-$router->get('/orders/print', 'orderscontroller@printpage'); // <-- add
+$router->get('/quotes/print', 'quotescontroller@printpage');
+$router->get('/orders/print', 'orderscontroller@printpage');
+
+// invoices
+$router->get('/invoices', 'invoicescontroller@index');
+$router->get('/invoices/show', 'invoicescontroller@show');
+$router->get('/invoices/print', 'invoicescontroller@printpage');
+$router->post('/invoices/create-from-order', 'invoicescontroller@createfromorder');
+
+// payments (invoice)
+$router->post('/payments', 'paymentscontroller@store');
+$router->post('/payments/delete', 'paymentscontroller@destroy');
 
 $router->dispatch();

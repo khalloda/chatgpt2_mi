@@ -38,7 +38,16 @@ function url_with_query(array $pairs): string {
     $qs = http_build_query($q);
     return $path . ($qs ? ('?' . $qs) : '');
 }
-
+function redirect(string $to): void
+{
+    // If already absolute (http/https), use as-is
+    if (preg_match('~^https?://~i', $to)) {
+        header('Location: ' . $to);
+    } else {
+        header('Location: ' . base_url($to));
+    }
+    exit;
+}
 /** CSRF utilities */
 function csrf_token(): string
 {
