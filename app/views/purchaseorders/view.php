@@ -49,7 +49,15 @@ use function App\Core\csrf_field;
     &nbsp;| Tax (<?= number_format((float)$po['tax_rate'],2) ?>%): <?= number_format((float)$po['tax_amount'],2) ?>
     &nbsp;| <strong>Total: <?= number_format((float)$po['total'],2) ?></strong>
   </p>
-
+<?php if (($po['status'] ?? '') !== 'closed'): ?>
+<form method="post" action="<?= base_url('/purchaseinvoices/create-from-po') ?>" style="display:inline-block;margin-right:8px;">
+  <?= csrf_field() ?>
+  <input type="hidden" name="purchase_order_id" value="<?= (int)$po['id'] ?>">
+  <button type="submit" style="padding:6px 10px;border:1px solid #111;border-radius:8px;background:#111;color:#fff;cursor:pointer;">
+    Create Purchase Invoice
+  </button>
+</form>
+<?php endif; ?>
   <?php
     // Notes (purchase_order)
     $entity_type = 'purchase_order';
