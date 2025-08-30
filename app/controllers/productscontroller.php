@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Make;
 use App\Models\VehicleModel;
 use App\Models\Warehouse;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -73,7 +74,8 @@ final class ProductsController extends Controller
             'mode'=>'edit','item'=>$item,
             'categories'=>Category::all(),
             'makes'=>Make::options(),
-            'models'=>VehicleModel::all($item['make_id'] ? (int)$item['make_id'] : null)
+            'models'=>VehicleModel::all($item['make_id'] ? (int)$item['make_id'] : null),
+			'notes'=> Note::for('product', (int)$it['id'])
         ]);
     }
 

@@ -24,6 +24,11 @@
       <?php endforeach; ?>
     </tbody>
   </table>
-
+<?php
+$entity_type = 'sales_order';
+$entity_id   = (int)$o['id'];
+$notes       = $notes ?? [];
+include __DIR__ . '/../partials/notes.php';
+?>
   <p style="margin-top:12px;"><a href="<?= base_url('/orders') ?>">Back to Orders</a></p>
 </section>

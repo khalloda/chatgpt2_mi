@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\SalesOrder;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -125,7 +126,7 @@ foreach ($items as $it) {
         redirect('/quotes/show?id=' . $id);
     }
 }
-        $this->view('quotes/view', ['q'=>$quote, 'items'=>$items]);
+        $this->view('quotes/view', ['q'=>$quote, 'items'=>$items, 'notes' => Note::for('quote', $id),]);
     }
 
     public function cancel(): void

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Models\Customer;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -33,7 +34,7 @@ final class CustomersController extends Controller
         $id=(int)($_GET['id']??0);
         $it=Customer::find($id);
         if(!$it){ flash_set('error','Not found.'); redirect('/customers'); }
-        $this->view('customers/form',['mode'=>'edit','item'=>$it]);
+        $this->view('customers/form',['mode'=>'edit','item'=>$it, 'notes'=> Note::for('customer', (int)$it['id'])]);
     }
     public function update(): void {
         require_auth();

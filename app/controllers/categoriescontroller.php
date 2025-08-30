@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Models\Category;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -62,7 +63,7 @@ final class CategoriesController extends Controller
             redirect('/categories');
         }
         $options = Category::options($id);
-        $this->view('categories/form', ['mode' => 'edit', 'options' => $options, 'item' => $item]);
+        $this->view('categories/form', ['mode' => 'edit', 'options' => $options, 'item' => $item,, 'notes'=> Note::for('category', (int)$it['id']]);
     }
 
     public function update(): void

@@ -3,6 +3,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Models\SalesOrder;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\redirect;
 
@@ -20,6 +21,6 @@ final class OrdersController extends Controller
     $list  = SalesOrder::all();
     $order = null; foreach ($list as $o) if((int)$o['id']===$id){ $order=$o; break; }
     if(!$order){ $this->redirect('/orders'); return; }
-    $this->view('orders/view', ['o'=>$order,'items'=>$items]);
+    $this->view('orders/view', ['o'=>$order,'items'=>$items,'notes' => Note::for('sales_order', $id)]);
   }
 }

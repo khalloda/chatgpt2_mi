@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Models\Warehouse;
+use App\Models\Note;
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -35,7 +36,7 @@ final class WarehousesController extends Controller
         $id = (int)($_GET['id'] ?? 0);
         $item = Warehouse::find($id);
         if(!$item){ flash_set('error','Not found.'); redirect('/warehouses'); }
-        $this->view('warehouses/form',['mode'=>'edit','item'=>$item]);
+        $this->view('warehouses/form',['mode'=>'edit','item'=>$item,'notes'=> Note::for('warehouse', (int)$it['id'])]);
     }
     public function update(): void {
         require_auth();

@@ -85,4 +85,8 @@ $router->post('/quotes/convert', 'quotescontroller@convert');
 $router->get('/orders', 'orderscontroller@index');
 $router->get('/orders/show', 'orderscontroller@show');
 
+// notes
+$router->post('/notes', 'notescontroller@store');
+$router->post('/notes/delete', 'notescontroller@destroy');
+
 $router->dispatch();

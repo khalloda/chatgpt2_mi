@@ -48,6 +48,11 @@ use function App\Core\csrf_field;
   </button>
 </form>
   <?php endif; ?>
-
+<?php
+$entity_type = 'quote';
+$entity_id   = (int)$q['id'];
+$notes       = $notes ?? [];
+include __DIR__ . '/../partials/notes.php';
+?>
   <p style="margin-top:12px;"><a href="<?= base_url('/quotes') ?>">Back to Quotes</a></p>
 </section>

@@ -65,7 +65,14 @@ use function App\Core\csrf_field;
       <a href="<?= base_url('/products') ?>" style="align-self:center;">Cancel</a>
     </div>
   </form>
-
+<?php if ($mode === 'edit'): ?>
+  <?php
+    $entity_type = 'product';
+    $entity_id   = (int)$item['id'];
+    $notes       = $notes ?? [];
+    include __DIR__ . '/../partials/notes.php';
+  ?>
+<?php endif; ?>
   <script>
     // client-side filter: show only models that belong to selected make
     (function(){

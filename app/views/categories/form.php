@@ -40,4 +40,12 @@ use function App\Core\csrf_field;
       <a href="<?= base_url('/categories') ?>" style="align-self:center;">Cancel</a>
     </div>
   </form>
+  <?php if ($mode === 'edit'): ?>
+  <?php
+    $entity_type = 'category';
+    $entity_id   = (int)$item['id'];
+    $notes       = $notes ?? [];
+    include __DIR__ . '/../partials/notes.php';
+  ?>
+<?php endif; ?>
 </section>
