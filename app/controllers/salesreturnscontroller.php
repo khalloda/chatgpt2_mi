@@ -20,21 +20,24 @@ final class SalesReturnsController extends Controller
         $invId = (int)($_POST['invoice_id'] ?? 0);
         if ($invId <= 0) { flash_set('error','Missing invoice.'); redirect('/invoices'); }
 
-        // Load invoice head
         $pdo = DB::conn();
-        $st = $pdo->prepare("SELECT si.*, c.name AS client_name
-                             FROM sales_invoices si
-                             JOIN clients c ON c.id = si.client_id
+
+        // NOTE: your schema uses invoices + customers (customer_id)
+        $st = $pdo->prepare("SELECT si.*, c.name AS customer_name
+                             FROM invoices si
+                             JOIN customers c ON c.id = si.customer_id
                              WHERE si.id=?");
         $st->execute([$invId]);
         $inv = $st->fetch(\PDO::FETCH_ASSOC);
         if (!$inv) { flash_set('error','Invoice not found.'); redirect('/invoices'); }
 
         // Load invoiced items and previous returns map
-        $items      = SalesReturn::invoiceItems($invId);
-        $returned   = SalesReturn::returnedMapByInvoice($invId);
+        $items      = \App\Models\SalesReturn::invoiceItems($invId);
+        $returned   = \App\Models\SalesReturn::returnedMapByInvoice($invId);
         $orderedMap = [];
-        foreach ($items as $it) { $orderedMap[$it['product_id'].':'.$it['warehouse_id']] = (int)$it['qty']; }
+        foreach ($items as $it) {
+            $orderedMap[$it['product_id'].':'.$it['warehouse_id']] = (int)$it['qty'];
+        }
 
         // Read submission arrays
         $pids   = $_POST['ret_product_id']   ?? [];
@@ -65,11 +68,11 @@ final class SalesReturnsController extends Controller
             $subtotal += $lineTotal;
 
             $lines[] = [
-                'product_id' => $pid,
-                'warehouse_id' => $wid,
-                'qty' => $qty,
-                'price' => $price,
-                'line_total' => $lineTotal,
+                'product_id'  => $pid,
+                'warehouse_id'=> $wid,
+                'qty'         => $qty,
+                'price'       => $price,
+                'line_total'  => $lineTotal,
             ];
 
             // update local returned map so same submission respects caps
@@ -93,7 +96,8 @@ final class SalesReturnsController extends Controller
             $insH = $pdo->prepare("INSERT INTO sales_returns
                 (sr_no, sales_invoice_id, client_id, subtotal, tax_rate, tax_amount, total)
                 VALUES (?,?,?,?,?,?,?)");
-            $insH->execute([$srNo, $invId, (int)$inv['client_id'], $subtotal, $taxRate, $taxAmount, $total]);
+            // NOTE: your invoices use customer_id (not client_id); we store it into client_id column of sales_returns
+            $insH->execute([$srNo, $invId, (int)$inv['customer_id'], $subtotal, $taxRate, $taxAmount, $total]);
             $srId = (int)$pdo->lastInsertId();
 
             $insL = $pdo->prepare("INSERT INTO sales_return_items
@@ -104,7 +108,10 @@ final class SalesReturnsController extends Controller
                 $insL->execute([$srId, $ln['product_id'], $ln['warehouse_id'], $ln['qty'], $ln['price'], $ln['line_total']]);
 
                 // RESTOCK returned items (product_stocks has NO id column)
-                $sel = $pdo->prepare("SELECT qty_on_hand FROM product_stocks WHERE product_id=? AND warehouse_id=? LIMIT 1");
+                $sel = $pdo->prepare("SELECT qty_on_hand
+                                      FROM product_stocks
+                                      WHERE product_id=? AND warehouse_id=?
+                                      LIMIT 1");
                 $sel->execute([$ln['product_id'], $ln['warehouse_id']]);
                 $row = $sel->fetch(\PDO::FETCH_ASSOC);
                 if ($row) {
@@ -113,7 +120,8 @@ final class SalesReturnsController extends Controller
                                           WHERE product_id=? AND warehouse_id=?");
                     $upd->execute([$ln['qty'], $ln['product_id'], $ln['warehouse_id']]);
                 } else {
-                    $ins = $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved)
+                    $ins = $pdo->prepare("INSERT INTO product_stocks
+                                          (product_id, warehouse_id, qty_on_hand, qty_reserved)
                                           VALUES (?,?,?,0)");
                     $ins->execute([$ln['product_id'], $ln['warehouse_id'], $ln['qty']]);
                 }
@@ -135,21 +143,22 @@ final class SalesReturnsController extends Controller
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) { redirect('/invoices'); }
 
-        $sr = SalesReturn::findHead($id);
+        $sr = \App\Models\SalesReturn::findHead($id);
         if (!$sr) { flash_set('error','Credit note not found.'); redirect('/invoices'); }
 
-        // invoice head for context
         $pdo = DB::conn();
-        $st = $pdo->prepare("SELECT si.*, c.name AS client_name
-                             FROM sales_invoices si
-                             JOIN clients c ON c.id = si.client_id
+
+        // Load invoice for context (invoices + customers)
+        $st = $pdo->prepare("SELECT si.*, c.name AS customer_name
+                             FROM invoices si
+                             JOIN customers c ON c.id = si.customer_id
                              WHERE si.id=?");
         $st->execute([(int)$sr['sales_invoice_id']]);
         $inv = $st->fetch(\PDO::FETCH_ASSOC) ?: [];
 
         $this->view_raw('salesreturns/print', [
             'sr'    => $sr,
-            'items' => SalesReturn::items((int)$sr['id']),
+            'items' => \App\Models\SalesReturn::items((int)$sr['id']),
             'inv'   => $inv,
         ]);
     }

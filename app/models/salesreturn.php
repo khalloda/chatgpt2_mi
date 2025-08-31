@@ -20,13 +20,15 @@ final class SalesReturn
 
     /** Items that were invoiced (per invoice id) */
     public static function invoiceItems(int $invoiceId): array {
-        $sql = "SELECT sii.product_id, sii.warehouse_id, sii.qty, sii.price, sii.line_total,
+        // NOTE: your schema uses invoices / invoice_items
+        $sql = "SELECT ii.product_id, ii.warehouse_id, ii.qty, ii.price, ii.line_total,
                        p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
-                FROM sales_invoice_items sii
-                JOIN products p   ON p.id = sii.product_id
-                JOIN warehouses w ON w.id = sii.warehouse_id
-                WHERE sii.sales_invoice_id = ?";
-        $st = DB::conn()->prepare($sql); $st->execute([$invoiceId]);
+                FROM invoice_items ii
+                JOIN products p   ON p.id = ii.product_id
+                JOIN warehouses w ON w.id = ii.warehouse_id
+                WHERE ii.invoice_id = ?";
+        $st = DB::conn()->prepare($sql);
+        $st->execute([$invoiceId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -37,7 +39,8 @@ final class SalesReturn
                 JOIN sales_returns sr ON sr.id = sri.sales_return_id
                 WHERE sr.sales_invoice_id = ?
                 GROUP BY sri.product_id, sri.warehouse_id";
-        $st = DB::conn()->prepare($sql); $st->execute([$invoiceId]);
+        $st = DB::conn()->prepare($sql);
+        $st->execute([$invoiceId]);
         $map = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
             $map[$r['product_id'].':'.$r['warehouse_id']] = (int)$r['qty'];
@@ -56,7 +59,8 @@ final class SalesReturn
                 JOIN warehouses w ON w.id = sri.warehouse_id
                 WHERE sr.sales_invoice_id = ?
                 ORDER BY sr.id DESC, sri.id DESC";
-        $st = DB::conn()->prepare($sql); $st->execute([$invoiceId]);
+        $st = DB::conn()->prepare($sql);
+        $st->execute([$invoiceId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -81,7 +85,8 @@ final class SalesReturn
                 JOIN warehouses w ON w.id = sri.warehouse_id
                 WHERE sri.sales_return_id = ?
                 ORDER BY sri.id ASC";
-        $st = DB::conn()->prepare($sql); $st->execute([$returnId]);
+        $st = DB::conn()->prepare($sql);
+        $st->execute([$returnId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 }
