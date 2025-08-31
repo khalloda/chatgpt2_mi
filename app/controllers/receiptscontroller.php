@@ -4,7 +4,6 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Models\PurchaseInvoice;
-use App\Models\PurchaseOrder;
 
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
@@ -33,10 +32,10 @@ final class ReceiptsController extends Controller
         $received = PurchaseInvoice::receivedMapByPo($poId);
 
         // Read submitted quantities
-        $pids = $_POST['rec_product_id'] ?? [];
-        $wids = $_POST['rec_warehouse_id'] ?? [];
-        $qtys = $_POST['rec_qty'] ?? [];
-        $prices = $_POST['rec_price'] ?? [];
+        $pids   = $_POST['rec_product_id']   ?? [];
+        $wids   = $_POST['rec_warehouse_id'] ?? [];
+        $qtys   = $_POST['rec_qty']          ?? [];
+        $prices = $_POST['rec_price']        ?? [];
 
         $pdo = DB::conn(); $pdo->beginTransaction();
         try {
@@ -44,10 +43,10 @@ final class ReceiptsController extends Controller
                                      VALUES (?,?,?,?,?)");
 
             $changed = false;
-            for ($i=0, $n=max(count($pids),count($wids),count($qtys)); $i<$n; $i++) {
-                $pid = (int)($pids[$i] ?? 0);
-                $wid = (int)($wids[$i] ?? 0);
-                $qty = (int)($qtys[$i] ?? 0);
+            for ($i=0, $n=max(count($pids),count($wids),count($qtys),count($prices)); $i<$n; $i++) {
+                $pid   = (int)($pids[$i]   ?? 0);
+                $wid   = (int)($wids[$i]   ?? 0);
+                $qty   = (int)($qtys[$i]   ?? 0);
                 $price = (float)($prices[$i] ?? 0);
 
                 if ($pid<=0 || $wid<=0 || $qty<=0) continue;
@@ -60,24 +59,31 @@ final class ReceiptsController extends Controller
 
                 if ($qty > $remain) { $qty = $remain; }
 
-                // Insert receipt
+                // Insert receipt line
                 $insRec->execute([$piId, $pid, $wid, $qty, $price]);
                 $changed = true;
 
-                // Increment stock (ensure row exists)
-                $st = $pdo->prepare("SELECT id, qty_on_hand FROM product_stocks WHERE product_id=? AND warehouse_id=? LIMIT 1");
+                // Increment stock by composite key (no 'id' column in product_stocks)
+                $st = $pdo->prepare("SELECT qty_on_hand
+                                     FROM product_stocks
+                                     WHERE product_id=? AND warehouse_id=?
+                                     LIMIT 1");
                 $st->execute([$pid, $wid]);
                 $row = $st->fetch(\PDO::FETCH_ASSOC);
+
                 if ($row) {
-                    $upd = $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE id=?");
-                    $upd->execute([$qty, (int)$row['id']]);
+                    $upd = $pdo->prepare("UPDATE product_stocks
+                                          SET qty_on_hand = qty_on_hand + ?
+                                          WHERE product_id=? AND warehouse_id=?");
+                    $upd->execute([$qty, $pid, $wid]);
                 } else {
-                    // create with reserved=0 default
-                    $ins = $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)");
+                    $ins = $pdo->prepare("INSERT INTO product_stocks
+                                          (product_id, warehouse_id, qty_on_hand, qty_reserved)
+                                          VALUES (?,?,?,0)");
                     $ins->execute([$pid, $wid, $qty]);
                 }
 
-                // update local received map for subsequent lines in same submission
+                // update local received map for this submission
                 $received[$key] = ($received[$key] ?? 0) + $qty;
             }
 
@@ -120,8 +126,9 @@ final class ReceiptsController extends Controller
             $st->execute([$id, $piId]);
             $r = $st->fetch(\PDO::FETCH_ASSOC);
             if ($r) {
-                // decrement stock
-                $pdo->prepare("UPDATE product_stocks SET qty_on_hand = GREATEST(qty_on_hand - ?, 0)
+                // decrement stock by composite key
+                $pdo->prepare("UPDATE product_stocks
+                               SET qty_on_hand = GREATEST(qty_on_hand - ?, 0)
                                WHERE product_id=? AND warehouse_id=?")
                     ->execute([(int)$r['qty'], (int)$r['product_id'], (int)$r['warehouse_id']]);
                 // delete receipt line
