@@ -74,4 +74,29 @@ final class PurchaseInvoice
     $st->execute([$invoiceId]);
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+public static function recalcPaidAmount(int $invoiceId): void
+{
+    $pdo = DB::conn();
+
+    $st = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM supplier_payments WHERE purchase_invoice_id=?");
+    $st->execute([$invoiceId]);
+    $paid = (float)$st->fetchColumn();
+
+    $st2 = $pdo->prepare("SELECT total FROM purchase_invoices WHERE id=?");
+    $st2->execute([$invoiceId]);
+    $total = (float)($st2->fetchColumn() ?: 0);
+
+    $status = 'unpaid';
+    if ($paid <= 0.0) {
+        $status = 'unpaid';
+    } elseif ($paid + 0.0001 < $total) {
+        $status = 'partial';
+    } else {
+        $paid = min($paid, $total); // cap display
+        $status = 'paid';
+    }
+
+    $upd = $pdo->prepare("UPDATE purchase_invoices SET paid_amount=?, status=? WHERE id=?");
+    $upd->execute([$paid, $status, $invoiceId]);
+}
 }

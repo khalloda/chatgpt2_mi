@@ -13,7 +13,8 @@ final class SuppliersController extends Controller
 {
     public function index(): void {
         require_auth();
-        $this->view('suppliers/index', ['items' => Supplier::all()]);
+        $items = \App\Models\Supplier::allWithBalance();
+    $this->view('suppliers/index', ['items' => $items]);
     }
 
     public function create(): void {

@@ -136,4 +136,9 @@ $router->post('/receipts', 'receiptscontroller@store');
 $router->post('/receipts/delete', 'receiptscontroller@destroy');
 $router->get('/receipts/print', 'receiptscontroller@printgrn');
 
+// supplier payments (AP)
+$router->get('/supplierpayments', 'supplierpaymentscontroller@index');
+$router->post('/supplierpayments', 'supplierpaymentscontroller@store');
+$router->post('/supplierpayments/delete', 'supplierpaymentscontroller@destroy');
+
 $router->dispatch();
