@@ -29,13 +29,21 @@ public function show(): void {
     $receivedMap = \App\Models\PurchaseInvoice::receivedMapByPo((int)$pi['purchase_order_id']);
     $receipts = \App\Models\PurchaseInvoice::receipts($id);
     $payments = \App\Models\SupplierPayment::forInvoice($id);
-
+	$credits_total = \App\Models\PurchaseReturn::creditsTotalForInvoice($id);
+	$pr_returns    = \App\Models\PurchaseReturn::returnsForInvoice($id);
+	$rec_map       = \App\Models\PurchaseReturn::receivedMapByInvoice($id);
+	$ret_map       = \App\Models\PurchaseReturn::returnedMapByInvoice($id);
+	
     $this->view('purchaseinvoices/view', [
         'pi'       => $pi,
         'items'    => $items,
         'received' => $receivedMap,
         'receipts' => $receipts,
         'payments' => $payments,
+		'credits_total' => $credits_total,
+  		'pr_returns'    => $pr_returns,
+  		'rec_map'       => $rec_map,
+  		'ret_map'       => $ret_map,
         'notes'    => \App\Models\Note::for('purchase_invoice', $id),
     ]);
 }

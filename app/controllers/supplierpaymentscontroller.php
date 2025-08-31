@@ -38,7 +38,8 @@ final class SupplierPaymentsController extends Controller
             redirect($return);
         }
 
-        $remaining = max(0.0, (float)$pi['total'] - (float)$pi['paid_amount']);
+        $credits = \App\Models\PurchaseReturn::creditsTotalForInvoice((int)$pi['id']);
+		$remaining = max(0.0, (float)$pi['total'] - (float)$pi['paid_amount'] - (float)$credits);
         if ($remaining <= 0.0) {
             flash_set('error','Nothing to pay; invoice is already fully paid.');
             redirect($return);

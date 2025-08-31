@@ -145,4 +145,8 @@ $router->post('/supplierpayments/delete', 'supplierpaymentscontroller@destroy');
 $router->post('/salesreturns', 'salesreturnscontroller@store');
 $router->get('/salesreturns/print', 'salesreturnscontroller@printnote');
 
+// purchase returns (debit notes)
+$router->post('/purchasereturns', 'purchasereturnscontroller@store');
+$router->get('/purchasereturns/print', 'purchasereturnscontroller@printnote');
+
 $router->dispatch();
