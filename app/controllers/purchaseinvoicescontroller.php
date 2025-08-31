@@ -20,20 +20,23 @@ final class PurchaseInvoicesController extends Controller
     }
 
     public function show(): void {
-        require_auth();
-        $id = (int)($_GET['id'] ?? 0);
-        $pi = PurchaseInvoice::find($id);
-        if (!$pi) { flash_set('error','Invoice not found.'); redirect('/purchaseinvoices'); }
+    require_auth();
+    $id = (int)($_GET['id'] ?? 0);
+    $pi = PurchaseInvoice::find($id);
+    if (!$pi) { flash_set('error','Invoice not found.'); redirect('/purchaseinvoices'); }
 
-        $items = PurchaseInvoice::poItems($id);
-        $receivedMap = PurchaseInvoice::receivedMapByPo((int)$pi['purchase_order_id']);
-        $this->view('purchaseinvoices/view', [
-            'pi' => $pi,
-            'items' => $items,
-            'received' => $receivedMap,
-            'notes' => Note::for('purchase_invoice', $id),
-        ]);
-    }
+    $items = PurchaseInvoice::poItems($id);
+    $receivedMap = PurchaseInvoice::receivedMapByPo((int)$pi['purchase_order_id']);
+    $receipts = \App\Models\PurchaseInvoice::receipts($id);
+
+    $this->view('purchaseinvoices/view', [
+        'pi'       => $pi,
+        'items'    => $items,
+        'received' => $receivedMap,
+        'receipts' => $receipts,
+        'notes'    => \App\Models\Note::for('purchase_invoice', $id),
+    ]);
+}
 
     public function createfrompo(): void {
         require_auth();

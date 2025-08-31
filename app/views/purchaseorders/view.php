@@ -23,6 +23,16 @@ use function App\Core\csrf_field;
     </form>
   <?php endif; ?>
 
+  <?php if (($po['status'] ?? '')==='received'): ?>
+    <form method="post" action="<?= base_url('/purchaseorders/close') ?>" style="margin:8px 0;">
+      <?= csrf_field() ?>
+      <input type="hidden" name="id" value="<?= (int)$po['id'] ?>">
+      <button type="submit" style="padding:6px 10px;border:1px solid #111;border-radius:8px;background:#111;color:#fff;cursor:pointer;">
+        Close PO
+      </button>
+    </form>
+  <?php endif; ?>
+
   <table style="width:100%;border-collapse:collapse;margin-top:10px;">
     <thead><tr>
       <th style="text-align:left;border-bottom:1px solid #eee;padding:8px;">Product</th>
@@ -49,6 +59,7 @@ use function App\Core\csrf_field;
     &nbsp;| Tax (<?= number_format((float)$po['tax_rate'],2) ?>%): <?= number_format((float)$po['tax_amount'],2) ?>
     &nbsp;| <strong>Total: <?= number_format((float)$po['total'],2) ?></strong>
   </p>
+
 <?php if (($po['status'] ?? '') !== 'closed'): ?>
 <form method="post" action="<?= base_url('/purchaseinvoices/create-from-po') ?>" style="display:inline-block;margin-right:8px;">
   <?= csrf_field() ?>
@@ -58,6 +69,7 @@ use function App\Core\csrf_field;
   </button>
 </form>
 <?php endif; ?>
+
   <?php
     // Notes (purchase_order)
     $entity_type = 'purchase_order';

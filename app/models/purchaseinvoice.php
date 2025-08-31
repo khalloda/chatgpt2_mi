@@ -62,4 +62,16 @@ final class PurchaseInvoice
         }
         return $map;
     }
+	
+	public static function receipts(int $invoiceId): array {
+    $sql = "SELECT r.*, p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
+            FROM receipts r
+            JOIN products p   ON p.id = r.product_id
+            JOIN warehouses w ON w.id = r.warehouse_id
+            WHERE r.purchase_invoice_id = ?
+            ORDER BY r.id DESC";
+    $st = DB::conn()->prepare($sql);
+    $st->execute([$invoiceId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 }

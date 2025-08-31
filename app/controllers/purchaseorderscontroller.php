@@ -199,4 +199,19 @@ final class PurchaseOrdersController extends Controller
         }
         return $rows;
     }
+	
+	public function markclosed(): void {
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseorders'); }
+    $id = (int)($_POST['id'] ?? 0);
+    $po = \App\Models\PurchaseOrder::find($id);
+    if (!$po) { flash_set('error','Not found.'); redirect('/purchaseorders'); }
+    if (($po['status'] ?? '') !== 'received') {
+        flash_set('error','Only received POs can be closed.');
+        redirect('/purchaseorders/show?id='.$id);
+    }
+    \App\Core\DB::conn()->prepare("UPDATE purchase_orders SET status='closed' WHERE id=?")->execute([$id]);
+    flash_set('success','PO closed.');
+    redirect('/purchaseorders/show?id='.$id);
+}
 }

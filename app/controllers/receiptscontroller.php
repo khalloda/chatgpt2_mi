@@ -143,4 +143,18 @@ final class ReceiptsController extends Controller
             redirect('/purchaseinvoices/show?id='.$piId);
         }
     }
+	
+	public function printgrn(): void {
+    require_auth();
+    $piId = (int)($_GET['invoice_id'] ?? 0);
+    $pi = \App\Models\PurchaseInvoice::find($piId);
+    if (!$pi) { flash_set('error','Invoice not found.'); redirect('/purchaseinvoices'); }
+    $items    = \App\Models\PurchaseInvoice::poItems($piId);
+    $receipts = \App\Models\PurchaseInvoice::receipts($piId);
+    $this->view_raw('receipts/print', [
+        'pi' => $pi,
+        'items' => $items,
+        'receipts' => $receipts,
+    ]);
+}
 }

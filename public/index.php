@@ -123,6 +123,7 @@ $router->post('/purchaseorders/update', 'purchaseorderscontroller@update');
 $router->get('/purchaseorders/show', 'purchaseorderscontroller@show');
 $router->post('/purchaseorders/mark-ordered', 'purchaseorderscontroller@markordered');
 $router->get('/purchaseorders/print', 'purchaseorderscontroller@printpage');
+$router->post('/purchaseorders/close', 'purchaseorderscontroller@markclosed');
 
 // purchase invoices
 $router->get('/purchaseinvoices', 'purchaseinvoicescontroller@index');
@@ -133,5 +134,6 @@ $router->post('/purchaseinvoices/create-from-po', 'purchaseinvoicescontroller@cr
 // receipts (from purchase invoices)
 $router->post('/receipts', 'receiptscontroller@store');
 $router->post('/receipts/delete', 'receiptscontroller@destroy');
+$router->get('/receipts/print', 'receiptscontroller@printgrn');
 
 $router->dispatch();
