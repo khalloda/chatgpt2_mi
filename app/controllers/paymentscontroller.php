@@ -34,7 +34,8 @@ final class PaymentsController extends Controller
     }
 
     // Prevent overpayment (cap to remaining)
-    $remaining = max(0.0, (float)$inv['total'] - (float)$inv['paid_amount']);
+	$credits = \App\Models\SalesReturn::creditsTotalForInvoice((int)$inv['id']);
+	$remaining = max(0.0, (float)$inv['total'] - (float)$inv['paid_amount'] - (float)$credits);
     if ($remaining <= 0.0) {
         flash_set('error','Nothing to pay; invoice is already fully paid.');
         redirect($return);

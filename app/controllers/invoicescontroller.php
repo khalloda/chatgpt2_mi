@@ -26,11 +26,17 @@ final class InvoicesController extends Controller
         if (!$inv) { flash_set('error','Invoice not found.'); redirect('/invoices'); }
         $items = Invoice::items($id);
         $payments = Invoice::payments($id);
+		$credits_total = \App\Models\SalesReturn::creditsTotalForInvoice($id);
+		$returns = \App\Models\SalesReturn::returnsForInvoice($id);
+		$ret_map = \App\Models\SalesReturn::returnedMapByInvoice($id);
         $this->view('invoices/view', [
             'i' => $inv,
             'items' => $items,
             'payments' => $payments,
-            'notes' => Note::for('sales_invoice', $id),
+			'credits_total' => $credits_total,
+			'returns' => $returns,
+			'ret_map' => $ret_map,
+			'notes' => Note::for('sales_invoice', $id),
         ]);
     }
 

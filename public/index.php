@@ -141,4 +141,8 @@ $router->get('/supplierpayments', 'supplierpaymentscontroller@index');
 $router->post('/supplierpayments', 'supplierpaymentscontroller@store');
 $router->post('/supplierpayments/delete', 'supplierpaymentscontroller@destroy');
 
+// sales returns (credit notes)
+$router->post('/salesreturns', 'salesreturnscontroller@store');
+$router->get('/salesreturns/print', 'salesreturnscontroller@printnote');
+
 $router->dispatch();
