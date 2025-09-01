@@ -155,5 +155,6 @@ $router->get('/purchasereturns/print', 'purchasereturnscontroller@printnote');
 
 // supplier statement & ap aging
 $router->get('/reports/ap-aging', 'reportscontroller@apaging');
+$router->get('/reports/ar-aging', 'reportscontroller@araging');
 
 $router->dispatch();
