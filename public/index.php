@@ -157,4 +157,18 @@ $router->get('/purchasereturns/print', 'purchasereturnscontroller@printnote');
 $router->get('/reports/ap-aging', 'reportscontroller@apaging');
 $router->get('/reports/ar-aging', 'reportscontroller@araging');
 
+// stock transfers
+$router->get('/transfers', 'transferscontroller@index');
+$router->get('/transfers/create', 'transferscontroller@create');
+$router->post('/transfers', 'transferscontroller@store');
+$router->get('/transfers/show', 'transferscontroller@show');
+$router->get('/transfers/print', 'transferscontroller@printnote');
+
+// stock adjustments
+$router->get('/adjustments', 'adjustmentscontroller@index');
+$router->get('/adjustments/create', 'adjustmentscontroller@create');
+$router->post('/adjustments', 'adjustmentscontroller@store');
+$router->get('/adjustments/show', 'adjustmentscontroller@show');
+$router->get('/adjustments/print', 'adjustmentscontroller@printnote');
+
 $router->dispatch();

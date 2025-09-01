@@ -49,7 +49,9 @@ use function App\Core\flash_get;
 		  <a href="<?= base_url('/purchaseinvoices') ?>">Purchase Invoices</a> ·
 		  <a href="<?= base_url('/supplierpayments') ?>">Supplier Payments</a> ·
 		  <a href="<?= base_url('/reports/ap-aging') ?>">AP Reports</a> ·
-		  <a href="<?= base_url('/reports/ar-aging') ?>">AR Reports</a>
+		  <a href="<?= base_url('/reports/ar-aging') ?>">AR Reports</a> ·
+		  <a href="<?= base_url('/transfers') ?>">Transfers</a> ·
+          <a href="<?= base_url('/adjustments') ?>">Adjustments</a>
         </nav>
       </div>
       <div>
