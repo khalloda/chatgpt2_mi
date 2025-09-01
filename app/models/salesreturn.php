@@ -6,6 +6,7 @@ use PDO;
 
 final class SalesReturn
 {
+    /** SRYYYY-#### (per year) */
     public static function nextNumber(): string {
         $y = date('Y');
         $st = DB::conn()->prepare("
@@ -14,72 +15,56 @@ final class SalesReturn
             WHERE sr_no LIKE CONCAT('SR', ?, '-%')
         ");
         $st->execute([$y]);
-        $seq = (string)($st->fetchColumn() ?: '0001');
+        $seq = (string)$st->fetchColumn();
+        if ($seq === '' || $seq === null) { $seq = '0001'; }
         return 'SR'.$y.'-'.$seq;
     }
 
-    /** Items that were invoiced (per invoice id) */
-    public static function invoiceItems(int $invoiceId): array {
-        // NOTE: your schema uses invoices / invoice_items
-        $sql = "SELECT ii.product_id, ii.warehouse_id, ii.qty, ii.price, ii.line_total,
-                       p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
-                FROM invoice_items ii
-                JOIN products p   ON p.id = ii.product_id
-                JOIN warehouses w ON w.id = ii.warehouse_id
-                WHERE ii.invoice_id = ?";
-        $st = DB::conn()->prepare($sql);
-        $st->execute([$invoiceId]);
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    /** Map: 'product_id:warehouse_id' => total returned qty (for this invoice) */
+    /** Returned quantities map for an invoice: key "product:warehouse" => qty */
     public static function returnedMapByInvoice(int $invoiceId): array {
         $sql = "SELECT sri.product_id, sri.warehouse_id, SUM(sri.qty) AS qty
-                FROM sales_return_items sri
-                JOIN sales_returns sr ON sr.id = sri.sales_return_id
-                WHERE sr.sales_invoice_id = ?
-                GROUP BY sri.product_id, sri.warehouse_id";
+                  FROM sales_return_items sri
+                  JOIN sales_returns sr ON sr.id = sri.sales_return_id
+                 WHERE sr.sales_invoice_id = ?
+                 GROUP BY sri.product_id, sri.warehouse_id";
         $st = DB::conn()->prepare($sql);
         $st->execute([$invoiceId]);
         $map = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            $map[$r['product_id'].':'.$r['warehouse_id']] = (int)$r['qty'];
+            $map[(int)$r['product_id'].':'.(int)$r['warehouse_id']] = (int)$r['qty'];
         }
         return $map;
     }
 
-    /** Returns history lines for an invoice (expanded with product/warehouse names) */
+    /** History rows for an invoice (used under invoice view) */
     public static function returnsForInvoice(int $invoiceId): array {
-        $sql = "SELECT sr.id AS sales_return_id, sr.sr_no, sr.created_at,
-                       sri.id AS item_id, sri.product_id, sri.warehouse_id, sri.qty, sri.price, sri.line_total,
-                       p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
-                FROM sales_returns sr
-                JOIN sales_return_items sri ON sri.sales_return_id = sr.id
-                JOIN products p   ON p.id = sri.product_id
-                JOIN warehouses w ON w.id = sri.warehouse_id
+        $sql = "SELECT 
+                    sri.sales_return_id,
+                    sr.sr_no,
+                    sr.created_at AS created_at,
+                    p.code AS product_code,
+                    p.name AS product_name,
+                    w.name AS warehouse_name,
+                    sri.qty,
+                    sri.price
+                FROM sales_return_items sri
+                JOIN sales_returns sr ON sr.id = sri.sales_return_id
+                JOIN products p       ON p.id = sri.product_id
+                JOIN warehouses w     ON w.id = sri.warehouse_id
                 WHERE sr.sales_invoice_id = ?
-                ORDER BY sr.id DESC, sri.id DESC";
+                ORDER BY sr.id DESC, sri.id ASC";
         $st = DB::conn()->prepare($sql);
         $st->execute([$invoiceId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /** Total credits amount for an invoice (to reduce AR balance) */
-    public static function creditsTotalForInvoice(int $invoiceId): float {
-        $st = DB::conn()->prepare("SELECT COALESCE(SUM(total),0) FROM sales_returns WHERE sales_invoice_id=?");
-        $st->execute([$invoiceId]);
-        return (float)$st->fetchColumn();
-    }
-
-    public static function findHead(int $id): ?array {
-        $st = DB::conn()->prepare("SELECT * FROM sales_returns WHERE id=?");
-        $st->execute([$id]);
-        $row = $st->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
-    }
-
+    /** Items for a specific credit note */
     public static function items(int $returnId): array {
-        $sql = "SELECT sri.*, p.code AS product_code, p.name AS product_name, w.name AS warehouse_name
+        $sql = "SELECT 
+                    sri.*,
+                    p.code AS product_code,
+                    p.name AS product_name,
+                    w.name AS warehouse_name
                 FROM sales_return_items sri
                 JOIN products p   ON p.id = sri.product_id
                 JOIN warehouses w ON w.id = sri.warehouse_id
@@ -88,5 +73,12 @@ final class SalesReturn
         $st = DB::conn()->prepare($sql);
         $st->execute([$returnId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** Sum of credits for an invoice (used for balance in invoice view) */
+    public static function creditsTotalForInvoice(int $invoiceId): float {
+        $st = DB::conn()->prepare("SELECT COALESCE(SUM(total),0) FROM sales_returns WHERE sales_invoice_id=?");
+        $st->execute([$invoiceId]);
+        return (float)$st->fetchColumn();
     }
 }

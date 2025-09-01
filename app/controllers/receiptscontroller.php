@@ -12,7 +12,7 @@ use function App\Core\redirect;
 
 final class ReceiptsController extends Controller
 {
-    /** Receive multiple lines for a Purchase Invoice (caps to remaining; increments stock) */
+    /** Receive multiple lines for a Purchase Invoice (caps to remaining; increments stock; updates avg_cost; writes ledger) */
     public function store(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseinvoices'); }
@@ -43,6 +43,7 @@ final class ReceiptsController extends Controller
                                      VALUES (?,?,?,?,?)");
 
             $changed = false;
+
             for ($i=0, $n=max(count($pids),count($wids),count($qtys),count($prices)); $i<$n; $i++) {
                 $pid   = (int)($pids[$i]   ?? 0);
                 $wid   = (int)($wids[$i]   ?? 0);
@@ -59,29 +60,49 @@ final class ReceiptsController extends Controller
 
                 if ($qty > $remain) { $qty = $remain; }
 
-                // Insert receipt line
+                // 1) Insert receipt line
                 $insRec->execute([$piId, $pid, $wid, $qty, $price]);
+                $receiptId = (int)$pdo->lastInsertId();
                 $changed = true;
 
-                // Increment stock by composite key (no 'id' column in product_stocks)
-                $st = $pdo->prepare("SELECT qty_on_hand
-                                     FROM product_stocks
-                                     WHERE product_id=? AND warehouse_id=?
-                                     LIMIT 1");
+                // 2) Recompute weighted average cost & increment stock (composite key, no 'id' column)
+                // lock row
+                $st = $pdo->prepare("
+                    SELECT qty_on_hand, avg_cost
+                    FROM product_stocks
+                    WHERE product_id=? AND warehouse_id=?
+                    FOR UPDATE
+                ");
                 $st->execute([$pid, $wid]);
                 $row = $st->fetch(\PDO::FETCH_ASSOC);
 
                 if ($row) {
-                    $upd = $pdo->prepare("UPDATE product_stocks
-                                          SET qty_on_hand = qty_on_hand + ?
-                                          WHERE product_id=? AND warehouse_id=?");
-                    $upd->execute([$qty, $pid, $wid]);
+                    $oldQty  = (int)$row['qty_on_hand'];
+                    $oldCost = (float)($row['avg_cost'] ?? 0.0);
+                    $newQty  = $oldQty + $qty;
+                    $newAvg  = $newQty > 0 ? ( ($oldQty * $oldCost) + ($qty * $price) ) / $newQty : 0.0;
+
+                    $upd = $pdo->prepare("
+                        UPDATE product_stocks
+                           SET qty_on_hand = ?, avg_cost = ?
+                         WHERE product_id=? AND warehouse_id=?
+                    ");
+                    $upd->execute([$newQty, $newAvg, $pid, $wid]);
                 } else {
-                    $ins = $pdo->prepare("INSERT INTO product_stocks
-                                          (product_id, warehouse_id, qty_on_hand, qty_reserved)
-                                          VALUES (?,?,?,0)");
-                    $ins->execute([$pid, $wid, $qty]);
+                    // first time: avg_cost = this purchase price
+                    $ins = $pdo->prepare("
+                        INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved, avg_cost)
+                        VALUES (?,?,?,?,?)
+                    ");
+                    $ins->execute([$pid, $wid, $qty, 0, $price]);
                 }
+
+                // 3) Valued inventory ledger (receipt)
+                $pdo->prepare("
+                    INSERT INTO inventory_ledger
+                        (product_id, warehouse_id, doc_type, doc_id, qty_delta, unit_cost, value_delta)
+                    VALUES (?,?,?,?,?,?,?)
+                ")->execute([$pid, $wid, 'receipt', $receiptId, $qty, $price, $qty * $price]);
 
                 // update local received map for this submission
                 $received[$key] = ($received[$key] ?? 0) + $qty;
@@ -109,7 +130,7 @@ final class ReceiptsController extends Controller
         }
     }
 
-    /** Optional: delete a receipt line and decrement stock */
+    /** Optional: delete a receipt line and decrement stock (logs a valued adjustment in ledger; avg_cost unchanged) */
     public function destroy(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseinvoices'); }
@@ -125,15 +146,36 @@ final class ReceiptsController extends Controller
             $st = $pdo->prepare("SELECT * FROM receipts WHERE id=? AND purchase_invoice_id=? FOR UPDATE");
             $st->execute([$id, $piId]);
             $r = $st->fetch(\PDO::FETCH_ASSOC);
+
             if ($r) {
+                $pid = (int)$r['product_id'];
+                $wid = (int)$r['warehouse_id'];
+                $qty = (int)$r['qty'];
+
+                // lock stock to read current avg_cost
+                $st2 = $pdo->prepare("SELECT qty_on_hand, avg_cost FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                $st2->execute([$pid,$wid]);
+                $stock = $st2->fetch(\PDO::FETCH_ASSOC) ?: ['qty_on_hand'=>0,'avg_cost'=>0.0];
+                $avg = (float)($stock['avg_cost'] ?? 0.0);
+
                 // decrement stock by composite key
-                $pdo->prepare("UPDATE product_stocks
-                               SET qty_on_hand = GREATEST(qty_on_hand - ?, 0)
-                               WHERE product_id=? AND warehouse_id=?")
-                    ->execute([(int)$r['qty'], (int)$r['product_id'], (int)$r['warehouse_id']]);
+                $pdo->prepare("
+                    UPDATE product_stocks
+                       SET qty_on_hand = GREATEST(qty_on_hand - ?, 0)
+                     WHERE product_id=? AND warehouse_id=?
+                ")->execute([$qty, $pid, $wid]);
+
+                // valued ledger: treat as adjustment (negative)
+                $pdo->prepare("
+                    INSERT INTO inventory_ledger
+                        (product_id, warehouse_id, doc_type, doc_id, qty_delta, unit_cost, value_delta)
+                    VALUES (?,?,?,?,?,?,?)
+                ")->execute([$pid, $wid, 'adjustment', $id, -$qty, $avg, -$qty * $avg]);
+
                 // delete receipt line
                 $pdo->prepare("DELETE FROM receipts WHERE id=?")->execute([$id]);
             }
+
             $pdo->commit();
             flash_set('success','Receipt deleted.');
             redirect('/purchaseinvoices/show?id='.$piId);
@@ -143,18 +185,18 @@ final class ReceiptsController extends Controller
             redirect('/purchaseinvoices/show?id='.$piId);
         }
     }
-	
-	public function printgrn(): void {
-    require_auth();
-    $piId = (int)($_GET['invoice_id'] ?? 0);
-    $pi = \App\Models\PurchaseInvoice::find($piId);
-    if (!$pi) { flash_set('error','Invoice not found.'); redirect('/purchaseinvoices'); }
-    $items    = \App\Models\PurchaseInvoice::poItems($piId);
-    $receipts = \App\Models\PurchaseInvoice::receipts($piId);
-    $this->view_raw('receipts/print', [
-        'pi' => $pi,
-        'items' => $items,
-        'receipts' => $receipts,
-    ]);
-}
+
+    public function printgrn(): void {
+        require_auth();
+        $piId = (int)($_GET['invoice_id'] ?? 0);
+        $pi = \App\Models\PurchaseInvoice::find($piId);
+        if (!$pi) { flash_set('error','Invoice not found.'); redirect('/purchaseinvoices'); }
+        $items    = \App\Models\PurchaseInvoice::poItems($piId);
+        $receipts = \App\Models\PurchaseInvoice::receipts($piId);
+        $this->view_raw('receipts/print', [
+            'pi'       => $pi,
+            'items'    => $items,
+            'receipts' => $receipts,
+        ]);
+    }
 }

@@ -65,8 +65,13 @@ final class TransfersController extends Controller
                 $qty = (int)($qtys[$i] ?? 0);
                 if ($pid<=0 || $qty<=0) continue;
 
-                // lock source stock (composite key, no 'id' column)
-                $st = $pdo->prepare("SELECT qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                // 1) lock source stock (composite key) and read avg_cost
+                $st = $pdo->prepare("
+                    SELECT qty_on_hand, qty_reserved, avg_cost
+                      FROM product_stocks
+                     WHERE product_id=? AND warehouse_id=?
+                     FOR UPDATE
+                ");
                 $st->execute([$pid, $from]);
                 $src = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -76,28 +81,48 @@ final class TransfersController extends Controller
                 if ($qty > $free) {
                     throw new \RuntimeException("Insufficient free stock for product #{$pid} in source warehouse.");
                 }
+                $srcAvg = (float)($src['avg_cost'] ?? 0.0);
 
-                // decrement source
-                if ($src) {
-                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand - ? WHERE product_id=? AND warehouse_id=?")
-                        ->execute([$qty, $pid, $from]);
-                } else {
-                    throw new \RuntimeException("No stock row for product #{$pid} in source warehouse.");
-                }
+                // 2) decrement source on-hand
+                $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand - ? WHERE product_id=? AND warehouse_id=?")
+                    ->execute([$qty, $pid, $from]);
 
-                // increment destination (ensure row)
-                $st = $pdo->prepare("SELECT qty_on_hand FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                // 3) ledger: transfer_out at source avg
+                $pdo->prepare("
+                    INSERT INTO inventory_ledger (product_id, warehouse_id, doc_type, doc_id, qty_delta, unit_cost, value_delta)
+                    VALUES (?,?,?,?,?,?,?)
+                ")->execute([$pid, $from, 'transfer_out', $trId, -$qty, $srcAvg, -$qty * $srcAvg]);
+
+                // 4) increment destination and recompute dest avg using source avg as incoming unit cost
+                $st = $pdo->prepare("
+                    SELECT qty_on_hand, avg_cost
+                      FROM product_stocks
+                     WHERE product_id=? AND warehouse_id=?
+                     FOR UPDATE
+                ");
                 $st->execute([$pid,$to]);
                 $dst = $st->fetch(PDO::FETCH_ASSOC);
+
                 if ($dst) {
-                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
-                        ->execute([$qty, $pid, $to]);
+                    $oldQty  = (int)$dst['qty_on_hand'];
+                    $oldCost = (float)$dst['avg_cost'];
+                    $newQty  = $oldQty + $qty;
+                    $newAvg  = $newQty > 0 ? ( ($oldQty * $oldCost) + ($qty * $srcAvg) ) / $newQty : $srcAvg;
+
+                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand=?, avg_cost=? WHERE product_id=? AND warehouse_id=?")
+                        ->execute([$newQty, $newAvg, $pid, $to]);
                 } else {
-                    $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)")
-                        ->execute([$pid,$to,$qty]);
+                    $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved, avg_cost) VALUES (?,?,?,?,?)")
+                        ->execute([$pid,$to,$qty,0,$srcAvg]);
                 }
 
-                // item row
+                // 5) ledger: transfer_in at same unit cost
+                $pdo->prepare("
+                    INSERT INTO inventory_ledger (product_id, warehouse_id, doc_type, doc_id, qty_delta, unit_cost, value_delta)
+                    VALUES (?,?,?,?,?,?,?)
+                ")->execute([$pid, $to, 'transfer_in', $trId, $qty, $srcAvg, $qty * $srcAvg]);
+
+                // 6) item row
                 $insItem->execute([$trId,$pid,$qty]);
             }
 

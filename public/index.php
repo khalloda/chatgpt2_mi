@@ -153,9 +153,10 @@ $router->get('/salesreturns/print', 'salesreturnscontroller@printnote');
 $router->post('/purchasereturns', 'purchasereturnscontroller@store');
 $router->get('/purchasereturns/print', 'purchasereturnscontroller@printnote');
 
-// supplier statement & ap aging
+// reports
 $router->get('/reports/ap-aging', 'reportscontroller@apaging');
 $router->get('/reports/ar-aging', 'reportscontroller@araging');
+$router->get('/reports/inventory-valuation', 'reportscontroller@inventoryvaluation');
 
 // stock transfers
 $router->get('/transfers', 'transferscontroller@index');

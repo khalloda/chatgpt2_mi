@@ -58,32 +58,46 @@ final class AdjustmentsController extends Controller
                 $chg = (int)($qtys[$i] ?? 0);
                 if ($pid<=0 || $chg===0) continue;
 
-                // lock stock (composite key)
-                $st = $pdo->prepare("SELECT qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                // 1) lock stock (composite key) and read avg_cost
+                $st = $pdo->prepare("
+                    SELECT qty_on_hand, qty_reserved, avg_cost
+                      FROM product_stocks
+                     WHERE product_id=? AND warehouse_id=?
+                     FOR UPDATE
+                ");
                 $st->execute([$pid,$wid]);
                 $row = $st->fetch(PDO::FETCH_ASSOC);
+                $avg = (float)($row['avg_cost'] ?? 0.0);
 
                 if ($chg < 0) {
+                    // 2a) negative adjustment: ensure free qty then decrease on-hand
                     $on  = (int)($row['qty_on_hand'] ?? 0);
                     $res = (int)($row['qty_reserved'] ?? 0);
                     $free = $on - $res;
                     if (-$chg > $free) {
                         throw new \RuntimeException("Insufficient free stock to decrease product #{$pid}.");
                     }
-                    // reduce on-hand
                     $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
                         ->execute([$chg, $pid, $wid]); // $chg negative
                 } else {
-                    // increase; ensure row exists
+                    // 2b) positive adjustment: ensure row exists; DO NOT change avg_cost (count-only adjustment)
                     if ($row) {
                         $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
                             ->execute([$chg, $pid, $wid]);
                     } else {
-                        $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)")
-                            ->execute([$pid,$wid,$chg]);
+                        $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved, avg_cost) VALUES (?,?,?,?,?)")
+                            ->execute([$pid,$wid,$chg,0,0.0]);
+                        $avg = 0.0; // new row has zero avg until next receipt establishes it
                     }
                 }
 
+                // 3) ledger: adjustment at current avg (value impact = qty_change * avg_cost)
+                $pdo->prepare("
+                    INSERT INTO inventory_ledger (product_id, warehouse_id, doc_type, doc_id, qty_delta, unit_cost, value_delta)
+                    VALUES (?,?,?,?,?,?,?)
+                ")->execute([$pid, $wid, 'adjustment', $adjId, $chg, $avg, $chg * $avg]);
+
+                // 4) item row
                 $insItem->execute([$adjId,$pid,$chg]);
             }
 

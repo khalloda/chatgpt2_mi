@@ -115,4 +115,28 @@ final class ReportsController extends Controller
             'totals' => $totals,
         ]);
     }
+
+    /** Inventory Valuation (weighted average) */
+    public function inventoryvaluation(): void {
+        require_auth();
+        $pdo = DB::conn();
+        $rows = $pdo->query("
+            SELECT ps.product_id, ps.warehouse_id, ps.qty_on_hand, ps.avg_cost,
+                   (ps.qty_on_hand * ps.avg_cost) AS value,
+                   p.code AS product_code, p.name AS product_name,
+                   w.name AS warehouse_name
+            FROM product_stocks ps
+            JOIN products p   ON p.id=ps.product_id
+            JOIN warehouses w ON w.id=ps.warehouse_id
+            ORDER BY w.name, p.code, p.name
+        ")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $tot = ['qty'=>0,'value'=>0.0];
+        foreach ($rows as $r) {
+            $tot['qty']   += (int)$r['qty_on_hand'];
+            $tot['value'] += (float)$r['value'];
+        }
+
+        $this->view('reports/inventory_valuation', ['rows'=>$rows, 'tot'=>$tot]);
+    }
 }
