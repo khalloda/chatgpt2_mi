@@ -1,0 +1,72 @@
+name: Build Code Dump
+
+on:
+  push:
+    branches: [ "feature/cogs-weighted-avg" ]   # change if your default branch is different
+  workflow_dispatch: {}     # lets you run it manually from the Actions tab
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate code dump
+        run: |
+          set -euo pipefail
+          OUTPUT="code_dump.txt"
+
+          # Directories & file types to exclude (tweak as needed)
+          EXCLUDE_DIRS=(" .git " " node_modules " " dist " " build " " vendor " ".venv" ".idea" ".vscode" "coverage")
+          BINARY_EXT=("png" "jpg" "jpeg" "gif" "webp" "svg" "ico" "pdf" "zip" "gz" "tar" "7z" "rar" "exe" "dll" "so" "dylib" "class" "jar" "wasm" "ttf" "otf" "woff" "woff2" "psd" "ai" "mp3" "mp4" "mov" "avi" "heic" "bin")
+
+          is_binary_ext () {
+            local f="$1"; local ext="${f##*.}"; ext="${ext,,}"
+            for e in "${BINARY_EXT[@]}"; do [[ "$ext" == "$e" ]] && return 0; done
+            return 1
+          }
+
+          # Prefer git-tracked files (respects .gitignore)
+          mapfile -t ALL_FILES < <(git ls-files)
+
+          # Filter excluded directories
+          FILTERED=()
+          for p in "${ALL_FILES[@]}"; do
+            skip=false
+            for d in "${EXCLUDE_DIRS[@]}"; do
+              case "$p" in
+                "$d"/*|*/"$d"/*) skip=true; break;;
+              esac
+            done
+            $skip || FILTERED+=("$p")
+          done
+
+          # Header + hierarchy
+          echo "==================== HIERARCHY ====================" > "$OUTPUT"
+          printf "%s\n" "${FILTERED[@]}" | sort >> "$OUTPUT"
+          echo "" >> "$OUTPUT"
+          echo "==================== FILES & CONTENTS ====================" >> "$OUTPUT"
+
+          # Dump contents for each file
+          for rel in "${FILTERED[@]}"; do
+            [ -d "$rel" ] && continue
+            if is_binary_ext "$rel"; then
+              echo "----- BEGIN FILE: $rel (binary skipped) -----" >> "$OUTPUT"
+              echo "----- END FILE: $rel -----" >> "$OUTPUT"
+              echo "" >> "$OUTPUT"
+              continue
+            fi
+            echo "----- BEGIN FILE: $rel -----" >> "$OUTPUT"
+            cat "$rel" >> "$OUTPUT"
+            echo "" >> "$OUTPUT"
+            echo "----- END FILE: $rel -----" >> "$OUTPUT"
+            echo "" >> "$OUTPUT"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code_dump
+          path: code_dump.txt
