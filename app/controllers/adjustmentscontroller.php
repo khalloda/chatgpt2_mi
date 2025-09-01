@@ -58,8 +58,8 @@ final class AdjustmentsController extends Controller
                 $chg = (int)($qtys[$i] ?? 0);
                 if ($pid<=0 || $chg===0) continue;
 
-                // lock stock row
-                $st = $pdo->prepare("SELECT id, qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                // lock stock (composite key)
+                $st = $pdo->prepare("SELECT qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
                 $st->execute([$pid,$wid]);
                 $row = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -70,15 +70,18 @@ final class AdjustmentsController extends Controller
                     if (-$chg > $free) {
                         throw new \RuntimeException("Insufficient free stock to decrease product #{$pid}.");
                     }
-                }
-
-                if ($row) {
-                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE id=?")
-                        ->execute([$chg, (int)$row['id']]);
+                    // reduce on-hand
+                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
+                        ->execute([$chg, $pid, $wid]); // $chg negative
                 } else {
-                    if ($chg < 0) { throw new \RuntimeException("No stock row for product #{$pid} to decrease."); }
-                    $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)")
-                        ->execute([$pid,$wid,$chg]);
+                    // increase; ensure row exists
+                    if ($row) {
+                        $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
+                            ->execute([$chg, $pid, $wid]);
+                    } else {
+                        $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)")
+                            ->execute([$pid,$wid,$chg]);
+                    }
                 }
 
                 $insItem->execute([$adjId,$pid,$chg]);

@@ -65,8 +65,8 @@ final class TransfersController extends Controller
                 $qty = (int)($qtys[$i] ?? 0);
                 if ($pid<=0 || $qty<=0) continue;
 
-                // lock source stock
-                $st = $pdo->prepare("SELECT id, qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                // lock source stock (composite key, no 'id' column)
+                $st = $pdo->prepare("SELECT qty_on_hand, qty_reserved FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
                 $st->execute([$pid, $from]);
                 $src = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -79,19 +79,19 @@ final class TransfersController extends Controller
 
                 // decrement source
                 if ($src) {
-                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand - ? WHERE id=?")
-                        ->execute([$qty, (int)$src['id']]);
+                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand - ? WHERE product_id=? AND warehouse_id=?")
+                        ->execute([$qty, $pid, $from]);
                 } else {
                     throw new \RuntimeException("No stock row for product #{$pid} in source warehouse.");
                 }
 
                 // increment destination (ensure row)
-                $st = $pdo->prepare("SELECT id FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
+                $st = $pdo->prepare("SELECT qty_on_hand FROM product_stocks WHERE product_id=? AND warehouse_id=? FOR UPDATE");
                 $st->execute([$pid,$to]);
                 $dst = $st->fetch(PDO::FETCH_ASSOC);
                 if ($dst) {
-                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE id=?")
-                        ->execute([$qty, (int)$dst['id']]);
+                    $pdo->prepare("UPDATE product_stocks SET qty_on_hand = qty_on_hand + ? WHERE product_id=? AND warehouse_id=?")
+                        ->execute([$qty, $pid, $to]);
                 } else {
                     $pdo->prepare("INSERT INTO product_stocks (product_id, warehouse_id, qty_on_hand, qty_reserved) VALUES (?,?,?,0)")
                         ->execute([$pid,$to,$qty]);
