@@ -25,7 +25,9 @@ use function App\Core\flash_get;
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;"><?= htmlspecialchars($c['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;"><?= htmlspecialchars($c['email'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
           <td style="border-bottom:1px solid #f2f2f4;padding:8px;">
-            <a href="<?= base_url('/customers/edit?id='.(int)$c['id']) ?>">Edit</a> &nbsp;|&nbsp;
+             <a href="<?= base_url('/customers/show?id='.(int)$c['id']) ?>">View</a> ·
+			 <a href="<?= base_url('/customers/edit?id='.(int)$c['id']) ?>">Edit</a> &nbsp;|&nbsp;
+			 <a href="<?= base_url('/customers/statement?id='.(int)$c['id'].'&from='.date('Y-m-01').'&to='.date('Y-m-d')) ?>">Statement</a>
             <form method="post" action="<?= base_url('/customers/delete') ?>" style="display:inline" onsubmit="return confirm('Delete this customer?');">
               <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
               <button type="submit" style="background:none;border:none;color:#c00;cursor:pointer;">Delete</button>

@@ -25,12 +25,9 @@
             <?= number_format((float)($s['balance'] ?? 0), 2) ?>
           </td>
           <td style="padding:8px;border-bottom:1px solid #f2f2f4;">
-            <!-- Adjust links to whatever routes you already have -->
-            <a href="<?= base_url('/suppliers/show?id='.(int)$s['id']) ?>">View</a>
-            <?php /* If you have edit:
-            · <a href="<?= base_url('/suppliers/edit?id='.(int)$s['id']) ?>">Edit</a>
-            */ ?>
-          </td>
+			<a href="<?= base_url('/suppliers/show?id='.(int)$s['id']) ?>">View</a> ·
+  			<a href="<?= base_url('/suppliers/statement?id='.(int)$s['id'].'&from='.date('Y-m-01').'&to='.date('Y-m-d')) ?>">Statement</a>
+            </td>
         </tr>
       <?php endforeach; ?>
       <?php if (empty($items)): ?>

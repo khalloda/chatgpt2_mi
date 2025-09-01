@@ -71,6 +71,8 @@ $router->post('/customers', 'customerscontroller@store');
 $router->get('/customers/edit', 'customerscontroller@edit');
 $router->post('/customers/update', 'customerscontroller@update');
 $router->post('/customers/delete', 'customerscontroller@destroy');
+$router->get('/customers/show', 'customerscontroller@show'); 
+$router->get('/customers/statement', 'customerscontroller@statement');
 
 // quotes
 $router->get('/quotes', 'quotescontroller@index');
@@ -113,6 +115,8 @@ $router->post('/suppliers', 'supplierscontroller@store');
 $router->get('/suppliers/edit', 'supplierscontroller@edit');
 $router->post('/suppliers/update', 'supplierscontroller@update');
 $router->post('/suppliers/delete', 'supplierscontroller@destroy');
+$router->get('/suppliers/show', 'supplierscontroller@show'); 
+$router->get('/suppliers/statement', 'supplierscontroller@statement');
 
 // purchase orders
 $router->get('/purchaseorders', 'purchaseorderscontroller@index');
@@ -148,5 +152,8 @@ $router->get('/salesreturns/print', 'salesreturnscontroller@printnote');
 // purchase returns (debit notes)
 $router->post('/purchasereturns', 'purchasereturnscontroller@store');
 $router->get('/purchasereturns/print', 'purchasereturnscontroller@printnote');
+
+// supplier statement & ap aging
+$router->get('/reports/ap-aging', 'reportscontroller@apaging');
 
 $router->dispatch();
