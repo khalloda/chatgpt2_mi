@@ -5,11 +5,11 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Models\Quote;
-use App\Models\Customer;
-use App\Models\Product;
-use App\Models\Warehouse;
 use App\Models\SalesOrder;
 use App\Models\Note;
+use App\Services\DocNumbers;
+use PDO;
+
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
 use function App\Core\flash_set;
@@ -17,282 +17,300 @@ use function App\Core\redirect;
 
 final class QuotesController extends Controller
 {
-    public function index(): void
-    {
+    public function index(): void {
         require_auth();
         $this->view('quotes/index', ['items' => Quote::all()]);
     }
 
-    public function create(): void
-    {
+    /** GET /quotes/create — preview number; do not allocate */
+    public function create(): void {
         require_auth();
+
+        $customers  = DB::conn()->query("SELECT id, name, phone FROM customers ORDER BY name")
+                        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $products   = DB::conn()->query("SELECT id, code, name, price, CONCAT(code,' — ',name) AS label FROM products ORDER BY code")
+                        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $warehouses = DB::conn()->query("SELECT id, name FROM warehouses ORDER BY name")
+                        ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $next_hint = DocNumbers::peek('q'); // non-binding preview
+
         $this->view('quotes/form', [
-            'mode' => 'create',
-            'quote_no' => Quote::nextNumber(),
-            'customers' => Customer::options(),
-            'warehouses' => Warehouse::options(),
-            'products' => $this->productOptions(),
-            'item_rows' => 3, // show 3 blank lines initially
+            'quote_no'   => '(assigned on save)',
+            'next_hint'  => $next_hint,
+            'customers'  => $customers,
+            'products'   => $products,
+            'warehouses' => $warehouses,
+            'item_rows'  => 5,
         ]);
     }
 
-    public function store(): void
-    {
+    /** POST /quotes — allocate number now, then insert */
+    public function store(): void {
         require_auth();
-        if (!verify_csrf_post()) { flash_set('error', 'Invalid session.'); redirect('/quotes'); }
-
-        $cust = (int)($_POST['customer_id'] ?? 0);
-        $tax  = (float)($_POST['tax_rate'] ?? 0);
-        $exp  = (string)($_POST['expires_at'] ?? '');
-        $qs   = $this->readItems();
-		// Ensure we do not reserve more than available (sum duplicates per product/warehouse)
-$want = [];
-foreach ($qs as $q) {
-    $key = $q['product_id'].':'.$q['warehouse_id'];
-    $want[$key] = ($want[$key] ?? 0) + (int)$q['qty'];
-}
-foreach ($want as $key => $qty) {
-    [$pid, $wid] = array_map('intval', explode(':', $key, 2));
-    $avail = $this->availableQty($pid, $wid);
-    if ($qty > $avail) {
-        $label = $this->productLabel($pid);
-        flash_set('error', "Insufficient stock to reserve ($label @ selected warehouse). Available: $avail, Requested: $qty.");
-        redirect('/quotes/create'); // do NOT save/reserve anything
-    }
-}
-// ensure price defaults from product when not provided or zero
-foreach ($qs as &$q) {
-    if (empty($q['price']) || (float)$q['price'] <= 0) {
-        $q['price'] = $this->productPrice((int)$q['product_id']);
-    }
-}
-unset($q);
-        if ($cust<=0 || !$qs) { flash_set('error','Customer and at least one line item are required.'); redirect('/quotes/create'); }
+        if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
 
         $pdo = DB::conn();
-        $pdo->beginTransaction();
+
         try {
-            $no = Quote::nextNumber();
-            // compute totals
-            $subtotal = 0.00;
-            foreach ($qs as $q) { $subtotal += $q['qty'] * $q['price']; }
-            $tax_amount = round($subtotal * ($tax/100), 2);
-            $total = round($subtotal + $tax_amount, 2);
+            $items = $this->readItems();
+            if (!$items) { throw new \RuntimeException('At least one item is required.'); }
 
-            $ins = $pdo->prepare('INSERT INTO quotes (quote_no, customer_id, status, tax_rate, subtotal, tax_amount, total, expires_at)
-                                  VALUES (?,?,?,?,?,?,?,?)');
-            $ins->execute([$no, $cust, 'sent', $tax, $subtotal, $tax_amount, $total, $exp ?: null]);
-            $quoteId = (int)$pdo->lastInsertId();
+            $customerId = (int)($_POST['customer_id'] ?? 0);
+            $taxRate    = (float)($_POST['tax_rate'] ?? 0);
+            $expiresAt  = trim((string)($_POST['expires_at'] ?? '')) ?: null;
 
-            $insIt = $pdo->prepare('INSERT INTO quote_items (quote_id, product_id, warehouse_id, qty, price, line_total)
-                                    VALUES (?, ?, ?, ?, ?, ?)');
-            foreach ($qs as $q) {
-                $lt = round($q['qty'] * $q['price'], 2);
-                $insIt->execute([$quoteId, $q['product_id'], $q['warehouse_id'], $q['qty'], $q['price'], $lt]);
-                // reserve stock
-                Product::adjustReserved($q['product_id'], $q['warehouse_id'], $q['qty']);
+            $subtotal = 0.0;
+            foreach ($items as &$it) {
+                $it['qty']        = max(1, (int)$it['qty']);
+                $it['price']      = (float)$it['price'];
+                $it['line_total'] = $it['qty'] * $it['price'];
+                $subtotal        += $it['line_total'];
+            }
+            unset($it);
+            $taxAmount = round($subtotal * ($taxRate / 100), 2);
+            $total     = $subtotal + $taxAmount;
+
+            $quoteNo = DocNumbers::next('q');
+            $initialStatus = 'draft'; // start in draft
+
+            $pdo->beginTransaction();
+
+            $pdo->prepare("
+                INSERT INTO quotes (quote_no, customer_id, status, tax_rate, subtotal, tax_amount, total, expires_at, created_at)
+                VALUES (?,?,?,?,?,?,?,?, NOW())
+            ")->execute([$quoteNo, $customerId, $initialStatus, $taxRate, $subtotal, $taxAmount, $total, $expiresAt]);
+
+            $qid = (int)$pdo->lastInsertId();
+
+            $insItem = $pdo->prepare("
+                INSERT INTO quote_items (quote_id, product_id, warehouse_id, qty, price, line_total)
+                VALUES (?,?,?,?,?,?)
+            ");
+            foreach ($items as $row) {
+                $insItem->execute([
+                    $qid,
+                    (int)$row['product_id'],
+                    (int)$row['warehouse_id'],
+                    (int)$row['qty'],
+                    (float)$row['price'],
+                    (float)$row['line_total'],
+                ]);
             }
 
             $pdo->commit();
-            flash_set('success', 'Quote created and stock reserved.');
-            redirect('/quotes/show?id=' . $quoteId);
+            flash_set('success', 'Quote created: '.$quoteNo);
+            redirect('/quotes/show?id='.$qid);
+
         } catch (\Throwable $e) {
-            $pdo->rollBack();
-            flash_set('error', 'Error: ' . $e->getMessage());
-            redirect('/quotes');
+            try { if ($pdo->inTransaction()) { $pdo->rollBack(); } } catch (\Throwable $ignore) {}
+            flash_set('error', 'Save failed: '.$e->getMessage());
+            redirect('/quotes/create');
         }
     }
 
-    public function show(): void
-    {
+    /** GET /quotes/show?id=.. — pass flags for buttons */
+    public function show(): void {
         require_auth();
         $id = (int)($_GET['id'] ?? 0);
-        $quote = Quote::find($id);
-         if (!$quote) {
-        flash_set('error', 'Quote not found.');
-        $this->view('quotes/index', ['items' => Quote::all()]); // no redirect
-        return;
-    }
+        $q  = Quote::find($id);
+        if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+
+        $status  = (string)($q['status'] ?? 'draft');
+        $today   = date('Y-m-d');
+        $expired = !empty($q['expires_at']) && $q['expires_at'] < $today;
+
+        $can_mark_sent = ($status === 'draft');
+        $can_convert   = in_array($status, ['draft','sent','accepted'], true);
+        $can_cancel    = in_array($status, ['draft','sent'], true);
+        $can_expire    = ($status !== 'expired');
+
         $items = Quote::items($id);
-		// preflight stock check: block if any line cannot be fulfilled
-foreach ($items as $it) {
-    $pid = (int)$it['product_id'];
-    $wid = (int)$it['warehouse_id'];
-    $q   = (int)$it['qty'];
-    if (!\App\Models\Product::canFulfill($pid, $wid, $q)) {
-        flash_set('error', 'Insufficient stock to convert ('
-            . htmlspecialchars($it['product_code'].' — '.$it['product_name'])
-            . ' @ ' . htmlspecialchars($it['warehouse_name']) . ').');
-        redirect('/quotes/show?id=' . $id);
-    }
-}
-        $this->view('quotes/view', ['q'=>$quote, 'items'=>$items, 'notes' => Note::for('quote', $id),]);
+
+        $this->view('quotes/view', [
+            'q'             => $q,
+            'items'         => $items,
+            'notes'         => Note::for('quote', $id),
+            'can_mark_sent' => $can_mark_sent,
+            'can_convert'   => $can_convert,
+            'can_cancel'    => $can_cancel,
+            'can_expire'    => $can_expire,
+            'expired'       => $expired,
+        ]);
     }
 
-    public function cancel(): void
-    {
+    /** POST /quotes/marksent — draft → sent */
+    public function marksent(): void {
+        require_auth();
+        if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
+
+        $id = (int)($_POST['id'] ?? 0);
+        $q  = Quote::find($id);
+        if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+
+        if (($q['status'] ?? '') !== 'draft') {
+            flash_set('error','Only draft quotes can be marked as sent.');
+            redirect('/quotes/show?id='.$id);
+        }
+
+        DB::conn()->prepare("UPDATE quotes SET status='sent' WHERE id=?")->execute([$id]);
+        flash_set('success','Quote marked as sent.');
+        redirect('/quotes/show?id='.$id);
+    }
+
+    /** POST /quotes/createorder — Q→SO */
+public function createorder(): void {
+    require_auth();
+    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
+
+    // Accept both names in case the view posts either one
+    $quoteId = (int)($_POST['quote_id'] ?? $_POST['id'] ?? $_GET['id'] ?? 0);
+    if ($quoteId <= 0) { flash_set('error','Missing quote id.'); redirect('/quotes'); }
+
+    $q = \App\Models\Quote::find($quoteId);
+    if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+
+    $pdo = \App\Core\DB::conn();
+    $pdo->beginTransaction();
+    try {
+        // Mirror number QYYYY-#### → SOYYYY-#### with suffix fallback if taken
+        $baseSoNo = $this->swapPrefix((string)$q['quote_no'], 'Q', 'SO');
+        $soNo     = $this->uniqueNo($baseSoNo, 'sales_orders', 'so_no', $pdo);
+
+        // IMPORTANT: include quote_id to satisfy FK fk_so_quote
+        $pdo->prepare("
+            INSERT INTO sales_orders
+                (quote_id, so_no, customer_id, status, tax_rate, subtotal, tax_amount, total, created_at)
+            VALUES
+                (?,?,?,?,?,?,?, ?, NOW())
+        ")->execute([
+            (int)$quoteId,
+            $soNo,
+            (int)$q['customer_id'],
+            'draft',                                  // initial SO status; adjust if needed
+            (float)$q['tax_rate'],
+            (float)$q['subtotal'],
+            (float)$q['tax_amount'],
+            (float)$q['total'],
+        ]);
+
+        $soId = (int)$pdo->lastInsertId();
+
+        // Copy lines from quote → sales order
+        $copy = $pdo->prepare("
+            SELECT product_id, warehouse_id, qty, price, line_total
+            FROM quote_items WHERE quote_id=?
+        ");
+        $ins  = $pdo->prepare("
+            INSERT INTO sales_order_items
+                (sales_order_id, product_id, warehouse_id, qty, price, line_total)
+            VALUES (?,?,?,?,?,?)
+        ");
+        $copy->execute([$quoteId]);
+        while ($row = $copy->fetch(\PDO::FETCH_ASSOC)) {
+            $ins->execute([
+                $soId,
+                (int)$row['product_id'],
+                (int)$row['warehouse_id'],
+                (int)$row['qty'],
+                (float)$row['price'],
+                (float)$row['line_total'],
+            ]);
+        }
+
+        // (Optional) reflect acceptance on the quote after conversion
+        $pdo->prepare("
+            UPDATE quotes
+               SET status = CASE WHEN status IN ('draft','sent') THEN 'accepted' ELSE status END
+             WHERE id = ?
+        ")->execute([$quoteId]);
+
+        $pdo->commit();
+        \App\Core\flash_set('success','Sales Order created: '.$soNo);
+        \App\Core\redirect('/orders/show?id='.$soId);
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) { $pdo->rollBack(); }
+        \App\Core\flash_set('error','Create order failed: '.$e->getMessage());
+        \App\Core\redirect('/quotes/show?id='.$quoteId);
+    }
+}
+
+
+    /** POST /quotes/cancel */
+    public function cancel(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
         $id = (int)($_POST['id'] ?? 0);
-        $q = Quote::find($id);
-        if (!$q || $q['status'] !== 'sent') { flash_set('error','Only sent quotes can be cancelled.'); redirect('/quotes'); }
-
-        $pdo = DB::conn();
-        $pdo->beginTransaction();
-        try {
-            // release reservations
-            $items = Quote::items($id);
-            foreach ($items as $it) {
-                Product::adjustReserved((int)$it['product_id'], (int)$it['warehouse_id'], -((int)$it['qty']));
-            }
-            $pdo->prepare('UPDATE quotes SET status="cancelled" WHERE id=?')->execute([$id]);
-            $pdo->commit();
-            flash_set('success','Quote cancelled and reservation released.');
+        $q  = Quote::find($id);
+        if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+        if (!in_array(($q['status'] ?? ''), ['draft','sent'], true)) {
+            flash_set('error','Only draft/sent quotes can be cancelled.');
             redirect('/quotes/show?id='.$id);
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            flash_set('error','Error: '.$e->getMessage());
-            redirect('/quotes');
         }
+        DB::conn()->prepare("UPDATE quotes SET status='cancelled' WHERE id=?")->execute([$id]);
+        flash_set('success','Quote cancelled.');
+        redirect('/quotes/show?id='.$id);
     }
 
-    public function expire(): void
-    {
+    /** POST /quotes/markexpired */
+    public function markexpired(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
         $id = (int)($_POST['id'] ?? 0);
-        $q = Quote::find($id);
-        if (!$q || $q['status'] !== 'sent') { flash_set('error','Only sent quotes can be expired.'); redirect('/quotes'); }
-
-        $pdo = DB::conn();
-        $pdo->beginTransaction();
-        try {
-            $items = Quote::items($id);
-            foreach ($items as $it) {
-                Product::adjustReserved((int)$it['product_id'], (int)$it['warehouse_id'], -((int)$it['qty']));
-            }
-            $pdo->prepare('UPDATE quotes SET status="expired" WHERE id=?')->execute([$id]);
-            $pdo->commit();
-            flash_set('success','Quote marked as expired and reservation released.');
+        $q  = Quote::find($id);
+        if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+        if (($q['status'] ?? '') === 'expired') {
+            flash_set('error','Quote already expired.');
             redirect('/quotes/show?id='.$id);
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            flash_set('error','Error: '.$e->getMessage());
-            redirect('/quotes');
         }
+        DB::conn()->prepare("UPDATE quotes SET status='expired' WHERE id=?")->execute([$id]);
+        flash_set('success','Quote marked as expired.');
+        redirect('/quotes/show?id='.$id);
     }
 
-    private function productOptions(): array
-    {
-        // minimal product list (id, display)
-        $sql = "SELECT p.id,
-                   CONCAT(p.code, ' — ', p.name) AS label,
-                   p.price
-            FROM products p
-            ORDER BY p.name";
-    return DB::conn()->query($sql)->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    /** Print */
+    public function printpage(): void {
+        require_auth();
+        $id = (int)($_GET['id'] ?? 0);
+        $q  = Quote::find($id);
+        if (!$q) { flash_set('error','Quote not found.'); redirect('/quotes'); }
+        $items = Quote::items($id);
+        $include = isset($_GET['include_notes']) && $_GET['include_notes'] === '1';
+        $publicNotes = $include ? Note::publicFor('quote', $id) : [];
+        $this->view_raw('quotes/print', [
+            'q' => $q,
+            'items' => $items,
+            'public_notes' => $publicNotes,
+            'include_notes' => $include,
+        ]);
     }
 
-private function productPrice(int $id): float
-{
-    $st = DB::conn()->prepare('SELECT price FROM products WHERE id = ?');
-    $st->execute([$id]);
-    return (float)$st->fetchColumn();
-}
+    /* ------------ helpers ------------ */
 
-    private function readItems(): array
-    {
-        $pids = $_POST['product_id'] ?? [];
-        $wids = $_POST['warehouse_id'] ?? [];
-        $qtys = $_POST['qty'] ?? [];
-        $prices = $_POST['price'] ?? [];
-
-        $rows = [];
-        for ($i=0; $i < count($pids); $i++) {
-            $pid = (int)($pids[$i] ?? 0);
-            $wid = (int)($wids[$i] ?? 0);
-            $q   = (int)($qtys[$i] ?? 0);
-            $pr  = (float)($prices[$i] ?? 0);
-            if ($pid>0 && $wid>0 && $q>0) {
-                $rows[] = ['product_id'=>$pid,'warehouse_id'=>$wid,'qty'=>$q,'price'=>$pr];
-            }
+    private function readItems(): array {
+        $rows=[]; $pids=$_POST['product_id']??[]; $wids=$_POST['warehouse_id']??[]; $qtys=$_POST['qty']??[]; $prices=$_POST['price']??[];
+        $n = max(count($pids),count($wids),count($qtys),count($prices));
+        for ($i=0;$i<$n;$i++) {
+            $pid=(int)($pids[$i]??0); $wid=(int)($wids[$i]??0); $q=(int)($qtys[$i]??0); $pr=(float)($prices[$i]??0);
+            if ($pid>0 && $wid>0 && $q>0 && $pr>=0) $rows[]=['product_id'=>$pid,'warehouse_id'=>$wid,'qty'=>$q,'price'=>$pr];
         }
         return $rows;
     }
-	
-	public function convert(): void
-{
-    require_auth();
-    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/quotes'); }
-    $id = (int)($_POST['id'] ?? 0);
-    $q  = Quote::find($id);
-    if (!$q || $q['status'] !== 'sent') { flash_set('error','Only sent quotes can be converted.'); redirect('/quotes'); }
 
-    $pdo = DB::conn(); $pdo->beginTransaction();
-    try {
-        $items = Quote::items($id);
-        $soNo = SalesOrder::nextNumber();
-        $insSo = $pdo->prepare("INSERT INTO sales_orders (so_no, quote_id, customer_id, status, tax_rate, subtotal, tax_amount, total)
-                                VALUES (?,?,?,?,?,?,?,?)");
-        $insSo->execute([$soNo, $id, $q['customer_id'], 'open', $q['tax_rate'], $q['subtotal'], $q['tax_amount'], $q['total']]);
-        $soId = (int)$pdo->lastInsertId();
-
-        $insItem = $pdo->prepare("INSERT INTO sales_order_items (sales_order_id, product_id, warehouse_id, qty, price, line_total)
-                                  VALUES (?,?,?,?,?,?)");
-        foreach ($items as $it) {
-            $qty = (int)$it['qty'];
-            $insItem->execute([$soId, (int)$it['product_id'], (int)$it['warehouse_id'], $qty, (float)$it['price'], (float)$it['line_total']]);
-            // move from reserved to consumed
-            Product::consumeFromReservation((int)$it['product_id'], (int)$it['warehouse_id'], $qty);
+    private function swapPrefix(string $src, string $from, string $to): string {
+        if (preg_match('/^'.preg_quote($from,'/').'(?P<yr>\d{4})-(?P<seq>\d{4})$/i', $src, $m)) {
+            return sprintf('%s%s-%s', $to, $m['yr'], $m['seq']);
         }
-
-        $pdo->prepare('UPDATE quotes SET status="ordered" WHERE id=?')->execute([$id]);
-        $pdo->commit();
-        flash_set('success','Converted to Sales Order ' . $soNo . ' and stock deducted.');
-        redirect('/orders/show?id='.$soId);
-    } catch (\Throwable $e) {
-        $pdo->rollBack();
-        flash_set('error','Convert failed: '.$e->getMessage());
-        redirect('/quotes/show?id='.$id);
+        if (stripos($src, $from) === 0) return $to.substr($src, strlen($from));
+        return $to.$src;
     }
-}
-private function availableQty(int $productId, int $warehouseId): int
-{
-    $st = DB::conn()->prepare('SELECT qty_on_hand, qty_reserved
-                               FROM product_stocks
-                               WHERE product_id=? AND warehouse_id=?');
-    $st->execute([$productId, $warehouseId]);
-    $row = $st->fetch(\PDO::FETCH_ASSOC) ?: ['qty_on_hand'=>0,'qty_reserved'=>0];
-    $on  = (int)$row['qty_on_hand'];
-    $res = (int)$row['qty_reserved'];
-    return max(0, $on - $res);
-}
 
-private function productLabel(int $id): string
-{
-    $st = DB::conn()->prepare('SELECT CONCAT(code, " — ", name) FROM products WHERE id=?');
-    $st->execute([$id]);
-    return (string)($st->fetchColumn() ?: ('#'.$id));
-}
-
-public function printpage(): void
-{
-    require_auth();
-    $id = (int)($_GET['id'] ?? 0);
-    $includeNotes = isset($_GET['include_notes']) && $_GET['include_notes'] === '1';
-
-    $quote = \App\Models\Quote::find($id);
-    if (!$quote) { flash_set('error','Quote not found.'); redirect('/quotes'); }
-
-    $items = \App\Models\Quote::items($id);
-    $publicNotes = $includeNotes ? Note::publicFor('quote', $id) : [];
-
-    $this->view_raw('quotes/print', [
-        'q' => $quote,
-        'items' => $items,
-        'public_notes' => $publicNotes,
-        'include_notes' => $includeNotes,
-    ]);
-}
-
+    private function uniqueNo(string $base, string $table, string $col, PDO $pdo): string {
+        $chk=$pdo->prepare("SELECT 1 FROM {$table} WHERE {$col}=? LIMIT 1");
+        $try=$base; $chk->execute([$try]);
+        if (!$chk->fetchColumn()) return $try;
+        foreach (range('A','Z') as $ch) { $try=$base.'-'.$ch; $chk->execute([$try]); if(!$chk->fetchColumn()) return $try; }
+        for ($i=2;$i<100;$i++) { $try=$base.'-'.$i; $chk->execute([$try]); if(!$chk->fetchColumn()) return $try; }
+        return $base.'-'.date('His');
+    }
 }

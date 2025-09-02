@@ -1,0 +1,35 @@
+/* fonts */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Poppins:wght@500;600;700&family=Cairo:wght@400;600;700&family=Changa:wght@500;600;700&display=swap");
+
+:root{
+  /* brand colors */
+  --brand-teal:#027381;
+  --brand-cyan:#0EB9CB;
+  --brand-purple:#4A0875;
+  --brand-amber:#FFC23D;
+  --brand-orange:#FF7751;
+  --brand-red:#F33829;
+  --brand-crimson:#C41E32;
+
+  /* neutrals */
+  --gray-900:#111827; --gray-700:#374151; --gray-500:#6B7280; --gray-300:#D1D5DB; --gray-100:#F3F4F6; --white:#fff;
+
+  /* theme */
+  --color-bg: var(--gray-100);
+  --color-surface: #ffffff;
+  --color-text: #1f2937;
+  --color-primary: var(--brand-teal);
+  --color-accent: var(--brand-amber);
+  --radius: 12px;
+  --shadow: 0 8px 20px rgba(0,0,0,.06);
+
+  /* typography */
+  --font-latin: "Inter",system-ui,Arial,Helvetica,sans-serif;
+  --font-latin-head:"Poppins",var(--font-latin);
+  --font-ar:"Cairo","Changa",var(--font-latin);
+}
+
+html[lang="ar"] body{ font-family: var(--font-ar); }
+html[lang="en"] body{ font-family: var(--font-latin); }
+h1,h2,h3,.heading{ font-family: var(--font-latin-head); }
+.card{ background:var(--color-surface); border-radius:var(--radius); box-shadow:var(--shadow); }

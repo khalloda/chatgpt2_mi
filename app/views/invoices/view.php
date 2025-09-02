@@ -52,6 +52,56 @@ $status        = $i['status'] ?? 'unpaid';
     &nbsp;| <strong>Total: <?= number_format((float)$i['total'],2) ?></strong>
   </p>
 
+<div class="card" style="margin-top:16px;">
+  <div class="card-body">
+    <h3 style="margin:0 0 10px 0;">Payments</h3>
+
+    <div style="margin-bottom:10px;color:#374151;">
+      <strong>Paid:</strong> <?= number_format((float)($paid ?? 0), 2) ?>
+      &nbsp; | &nbsp;
+      <strong>Due:</strong> <?= number_format(max(0, (float)$i['total'] - (float)($paid ?? 0)), 2) ?>
+    </div>
+
+    <?php if (!empty($payments)): ?>
+      <table class="table">
+        <thead><tr>
+          <th>Date</th><th>Method</th><th>Reference</th><th class="text-end">Amount</th><th></th>
+        </tr></thead>
+        <tbody>
+          <?php foreach ($payments as $p): ?>
+            <tr>
+              <td><?= htmlspecialchars($p['paid_at'] ?: ($p['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+              <td><?= htmlspecialchars($p['method'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+              <td><?= htmlspecialchars($p['reference'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
+              <td class="text-end"><?= number_format((float)$p['amount'], 2) ?></td>
+              <td class="text-end">
+                <form method="post" action="<?= base_url('/invoices/deletepayment') ?>" onsubmit="return confirm('Delete this payment?');" style="display:inline;">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="invoice_id" value="<?= (int)$i['id'] ?>">
+                  <input type="hidden" name="payment_id" value="<?= (int)$p['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php else: ?>
+      <div style="color:#6b7280;margin-bottom:10px;">No payments yet.</div>
+    <?php endif; ?>
+
+    <form method="post" action="<?= base_url('/invoices/addpayment') ?>" class="row g-2" style="margin-top:10px;">
+      <?= csrf_field() ?>
+      <input type="hidden" name="invoice_id" value="<?= (int)$i['id'] ?>">
+      <div class="col-md-2"><input type="date" name="paid_at" class="form-control" value="<?= date('Y-m-d') ?>"></div>
+      <div class="col-md-2"><input type="text" name="method" class="form-control" placeholder="Method (cash/bank)"></div>
+      <div class="col-md-3"><input type="text" name="reference" class="form-control" placeholder="Reference"></div>
+      <div class="col-md-2"><input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="Amount" required></div>
+      <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Add Payment</button></div>
+    </form>
+  </div>
+</div>	
+	
   <hr style="margin:14px 0;">
 
   <h3>Create Credit Note (Sales Return)</h3>

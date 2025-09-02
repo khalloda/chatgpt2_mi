@@ -1,0 +1,29 @@
+/* Logical, RTL-aware sticky helpers */
+.table-sticky { overflow: auto; position: relative; }
+.table-sticky th, .table-sticky td { vertical-align: middle; white-space: nowrap; }
+
+/* Pinned columns using logical properties so RTL auto-mirrors */
+.sticky-start { position: sticky; inset-inline-start: var(--sticky-offset,0); z-index: 3; background: var(--color-surface,#fff); }
+.sticky-end   { position: sticky; inset-inline-end:   var(--sticky-offset,0); z-index: 3; background: var(--color-surface,#fff); }
+.sticky-shadow-start { box-shadow: 4px 0 6px -4px rgba(0,0,0,.15); }
+.sticky-shadow-end   { box-shadow: -4px 0 6px -4px rgba(0,0,0,.15); }
+
+/* Truncation + tooltips */
+.truncate { max-width: var(--truncate,160px); overflow: hidden; text-overflow: ellipsis; }
+td.truncate[title], th.truncate[title]{ cursor: help; }
+
+/* Numeric alignment (logical) */
+td.num, th.num { text-align: end; }
+
+/* Compact cells */
+td.compact, th.compact { padding-top:.35rem; padding-bottom:.35rem; }
+
+/* Mobile: show only core columns */
+@media (max-width: 768px){
+  table[data-mobile="core-only"] td:not(.col-core),
+  table[data-mobile="core-only"] th:not(.col-core){ display:none; }
+}
+
+/* Badges for statuses */
+.badge-low { background: #FFEEF0; color:#C41E32; }
+.badge-ok  { background: #E6FFFA; color:#027381; }

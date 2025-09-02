@@ -53,6 +53,7 @@ $router->post('/warehouses', 'warehousescontroller@store');
 $router->get('/warehouses/edit', 'warehousescontroller@edit');
 $router->post('/warehouses/update', 'warehousescontroller@update');
 $router->post('/warehouses/delete', 'warehousescontroller@destroy');
+$router->get('/warehouses/show', 'warehousescontroller@show');
 
 // products
 $router->get('/products', 'productscontroller@index');
@@ -80,8 +81,9 @@ $router->get('/quotes/create', 'quotescontroller@create');
 $router->post('/quotes', 'quotescontroller@store');
 $router->get('/quotes/show', 'quotescontroller@show');
 $router->post('/quotes/cancel', 'quotescontroller@cancel');
-$router->post('/quotes/expire', 'quotescontroller@expire');
-$router->post('/quotes/convert', 'quotescontroller@convert');
+$router->post('/quotes/markexpired', 'quotescontroller@markexpired');
+$router->post('/quotes/createorder', 'quotescontroller@createorder');
+$router->post('/quotes/marksent', 'quotescontroller@marksent');
 
 // orders
 $router->get('/orders', 'orderscontroller@index');
@@ -101,6 +103,8 @@ $router->get('/invoices', 'invoicescontroller@index');
 $router->get('/invoices/show', 'invoicescontroller@show');
 $router->get('/invoices/print', 'invoicescontroller@printpage');
 $router->post('/invoices/create-from-order', 'invoicescontroller@createfromorder');
+$router->post('/invoices/addpayment', 'invoicescontroller@addpayment');
+$router->post('/invoices/deletepayment', 'invoicescontroller@deletepayment');
 
 // payments (invoice)
 $router->get('/payments', 'paymentscontroller@index');

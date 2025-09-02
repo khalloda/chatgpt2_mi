@@ -68,15 +68,22 @@ final class ProductsController extends Controller
     {
         require_auth();
         $id=(int)($_GET['id']??0);
-        $item = Product::find($id);
-        if(!$item){ flash_set('error','Product not found.'); redirect('/products'); }
-        $this->view('products/form', [
-            'mode'=>'edit','item'=>$item,
-            'categories'=>Category::all(),
-            'makes'=>Make::options(),
-            'models'=>VehicleModel::all($item['make_id'] ? (int)$item['make_id'] : null),
-			'notes'=> Note::for('product', (int)$it['id'])
-        ]);
+        $item = \App\Models\Product::find((int)$id);
+if (!$item) {
+    \App\Core\flash_set('error', 'Product not found');
+    \App\Core\redirect('/products');
+    return;
+}
+
+$this->view('products/form', [
+    'mode'       => 'edit',
+    'item'       => $item,                      // <-- use $item (not $it)
+    'categories' => \App\Models\Category::all(),
+    'makes'      => \App\Models\Make::options(),
+    'models'     => \App\Models\VehicleModel::all($item['make_id'] ? (int)$item['make_id'] : null),
+    'notes'      => \App\Models\Note::for('product', (int)$item['id']),
+]);
+
     }
 
     public function update(): void

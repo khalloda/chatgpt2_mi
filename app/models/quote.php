@@ -4,37 +4,37 @@ namespace App\Models;
 
 use App\Core\DB;
 use PDO;
+use App\Services\DocNumbers;
 
 final class Quote
 {
+    /** Allocate the next Quote number using centralized sequences. */
     public static function nextNumber(): string
     {
-        $y = date('Y');
-        $st = DB::conn()->prepare(
-            "SELECT LPAD(COALESCE(MAX(CAST(SUBSTRING(quote_no, 6) AS UNSIGNED)),0)+1,4,'0')
-             FROM quotes WHERE quote_no LIKE CONCAT('Q',$y,'-%')"
-        );
-        $st->execute();
-        $seq = (string)$st->fetchColumn();
-        if ($seq === '') $seq = '0001';
-        return 'Q' . $y . '-' . $seq;
+        return DocNumbers::next('q');
+    }
+
+    /** Peek without incrementing (for UI hints). */
+    public static function peekNumber(): string
+    {
+        return DocNumbers::peek('q');
     }
 
     public static function all(): array
     {
         $sql = "SELECT q.*, c.name AS customer_name
                 FROM quotes q
-                JOIN customers c ON c.id=q.customer_id
+                LEFT JOIN customers c ON c.id=q.customer_id
                 ORDER BY q.id DESC";
         return DB::conn()->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public static function find(int $id): ?array
     {
-        $st = DB::conn()->prepare('SELECT * FROM quotes WHERE id=? LIMIT 1');
+        $st = DB::conn()->prepare("SELECT * FROM quotes WHERE id=?");
         $st->execute([$id]);
-        $r = $st->fetch(PDO::FETCH_ASSOC);
-        return $r ?: null;
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
     }
 
     public static function items(int $quoteId): array

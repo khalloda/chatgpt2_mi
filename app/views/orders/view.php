@@ -11,7 +11,7 @@ use function App\Core\csrf_field;
   <div style="margin:6px 0 12px 0; display:flex; gap:8px; flex-wrap:wrap;">
     <form method="post" action="<?= base_url('/invoices/create-from-order') ?>" style="display:inline-block;">
       <?= csrf_field() ?>
-      <input type="hidden" name="order_id" value="<?= (int)$o['id'] ?>">
+      <input type="hidden" name="sales_order_id" value="<?= (int)$o['id'] ?>">
       <button type="submit"
               style="border:1px solid #111;background:#111;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;">
         Create Invoice

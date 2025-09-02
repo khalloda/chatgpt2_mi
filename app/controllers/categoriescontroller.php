@@ -63,7 +63,12 @@ final class CategoriesController extends Controller
             redirect('/categories');
         }
         $options = Category::options($id);
-        $this->view('categories/form', ['mode' => 'edit', 'options' => $options, 'item' => $item,, 'notes'=> Note::for('category', (int)$it['id']]);
+        $this->view('categories/form', [
+    'mode'   => 'edit',
+    'options'=> $options,
+    'item'   => $item,
+    'notes'  => \App\Models\Note::for('category', (int)$item['id']),
+]);
     }
 
     public function update(): void

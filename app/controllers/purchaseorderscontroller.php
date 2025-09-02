@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace App\Controllers;
 
 use App\Core\Controller;
@@ -6,6 +7,7 @@ use App\Core\DB;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Note;
+use App\Services\DocNumbers;
 
 use function App\Core\require_auth;
 use function App\Core\verify_csrf_post;
@@ -21,55 +23,94 @@ final class PurchaseOrdersController extends Controller
 
     public function create(): void {
         require_auth();
+
         $suppliers  = Supplier::all();
         $products   = DB::conn()->query("SELECT id, code, name, price FROM products ORDER BY code")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         $warehouses = DB::conn()->query("SELECT id, name FROM warehouses ORDER BY name")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        // Show a non-incrementing hint ONLY; real number allocated on save.
+        $next_hint = DocNumbers::peek('po');
+
         $this->view('purchaseorders/form', [
             'mode' => 'create',
-            'po'   => ['po_no'=>PurchaseOrder::nextNumber(), 'supplier_id'=>'', 'tax_rate'=>0, 'subtotal'=>0, 'tax_amount'=>0, 'total'=>0, 'status'=>'draft'],
-            'items'=> [],
-            'suppliers'=>$suppliers, 'products'=>$products, 'warehouses'=>$warehouses,
+            'po'   => [
+                'po_no'      => '(auto on save)',
+                'supplier_id'=> '',
+                'tax_rate'   => 0,
+                'subtotal'   => 0,
+                'tax_amount' => 0,
+                'total'      => 0,
+                'status'     => 'draft'
+            ],
+            'next_hint'  => $next_hint,
+            'items'      => [],
+            'suppliers'  => $suppliers,
+            'products'   => $products,
+            'warehouses' => $warehouses,
         ]);
     }
 
     public function store(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseorders'); }
-        $pdo = DB::conn(); $pdo->beginTransaction();
-        try {
-            $poNo = PurchaseOrder::nextNumber();
-            $supplierId = (int)($_POST['supplier_id'] ?? 0);
-            $taxRate = (float)($_POST['tax_rate'] ?? 0);
 
+        try {
+            // Allocate new number (atomic, separate from our tx)
+            $poNo = DocNumbers::next('po');
+
+            // Build lines & totals first
             $items = $this->readItems();
             if (!$items) { throw new \RuntimeException('At least one item is required.'); }
 
+            $supplierId = (int)($_POST['supplier_id'] ?? 0);
+            $taxRate    = (float)($_POST['tax_rate'] ?? 0);
+
             $subtotal = 0.0;
             foreach ($items as &$it) {
-                $it['qty'] = max(1, (int)$it['qty']);
-                $it['price'] = (float)$it['price'];
+                $it['qty']        = max(1, (int)$it['qty']);
+                $it['price']      = (float)$it['price'];
                 $it['line_total'] = $it['qty'] * $it['price'];
-                $subtotal += $it['line_total'];
+                $subtotal        += $it['line_total'];
             }
-            $taxAmount = round($subtotal * ($taxRate / 100), 2);
-            $total = $subtotal + $taxAmount;
+            unset($it);
 
-            $ins = $pdo->prepare("INSERT INTO purchase_orders (po_no, supplier_id, status, tax_rate, subtotal, tax_amount, total)
-                                  VALUES (?,?,?,?,?,?,?)");
-            $ins->execute([$poNo, $supplierId, 'draft', $taxRate, $subtotal, $taxAmount, $total]);
+            $taxAmount = round($subtotal * ($taxRate / 100), 2);
+            $total     = $subtotal + $taxAmount;
+
+            $pdo = DB::conn();
+            $pdo->beginTransaction();
+
+            $pdo->prepare("
+                INSERT INTO purchase_orders
+                    (po_no, supplier_id, status, tax_rate, subtotal, tax_amount, total, created_at)
+                VALUES (?,?,?,?,?,?,?, NOW())
+            ")->execute([$poNo, $supplierId, 'draft', $taxRate, $subtotal, $taxAmount, $total]);
+
             $poId = (int)$pdo->lastInsertId();
 
-            $insItem = $pdo->prepare("INSERT INTO purchase_order_items (purchase_order_id, product_id, warehouse_id, qty, price, line_total)
-                                      VALUES (?,?,?,?,?,?)");
-            foreach ($items as $it) {
-                $insItem->execute([$poId, (int)$it['product_id'], (int)$it['warehouse_id'], (int)$it['qty'], (float)$it['price'], (float)$it['line_total']]);
+            // NOTE: your schema has no received_qty column → do NOT include it
+            $insItem = $pdo->prepare("
+                INSERT INTO purchase_order_items
+                    (purchase_order_id, product_id, warehouse_id, qty, price, line_total)
+                VALUES (?,?,?,?,?,?)
+            ");
+            foreach ($items as $row) {
+                $insItem->execute([
+                    $poId,
+                    (int)$row['product_id'],
+                    (int)$row['warehouse_id'],
+                    (int)$row['qty'],
+                    (float)$row['price'],
+                    (float)$row['line_total']
+                ]);
             }
 
             $pdo->commit();
             flash_set('success','PO created: '.$poNo);
             redirect('/purchaseorders/show?id='.$poId);
+
         } catch (\Throwable $e) {
-            $pdo->rollBack();
+            try { $pdo = DB::conn(); if ($pdo->inTransaction()) { $pdo->rollBack(); } } catch (\Throwable $ignore) {}
             flash_set('error','Save failed: '.$e->getMessage());
             redirect('/purchaseorders/create');
         }
@@ -96,6 +137,7 @@ final class PurchaseOrdersController extends Controller
     public function update(): void {
         require_auth();
         if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseorders'); }
+
         $id = (int)($_POST['id'] ?? 0);
         $po = PurchaseOrder::find($id);
         if (!$po) { flash_set('error','Not found.'); redirect('/purchaseorders'); }
@@ -104,38 +146,56 @@ final class PurchaseOrdersController extends Controller
             redirect('/purchaseorders/show?id='.$id);
         }
 
-        $pdo = DB::conn(); $pdo->beginTransaction();
         try {
-            $supplierId = (int)($_POST['supplier_id'] ?? 0);
-            $taxRate = (float)($_POST['tax_rate'] ?? 0);
             $items = $this->readItems();
             if (!$items) { throw new \RuntimeException('At least one item is required.'); }
 
+            $supplierId = (int)($_POST['supplier_id'] ?? 0);
+            $taxRate    = (float)($_POST['tax_rate'] ?? 0);
+
             $subtotal = 0.0;
             foreach ($items as &$it) {
-                $it['qty'] = max(1, (int)$it['qty']);
-                $it['price'] = (float)$it['price'];
+                $it['qty']        = max(1, (int)$it['qty']);
+                $it['price']      = (float)$it['price'];
                 $it['line_total'] = $it['qty'] * $it['price'];
-                $subtotal += $it['line_total'];
+                $subtotal        += $it['line_total'];
             }
+            unset($it);
+
             $taxAmount = round($subtotal * ($taxRate/100), 2);
-            $total = $subtotal + $taxAmount;
+            $total     = $subtotal + $taxAmount;
+
+            $pdo = DB::conn();
+            $pdo->beginTransaction();
 
             $pdo->prepare("UPDATE purchase_orders SET supplier_id=?, tax_rate=?, subtotal=?, tax_amount=?, total=? WHERE id=?")
                 ->execute([$supplierId, $taxRate, $subtotal, $taxAmount, $total, $id]);
 
             $pdo->prepare("DELETE FROM purchase_order_items WHERE purchase_order_id=?")->execute([$id]);
-            $insItem = $pdo->prepare("INSERT INTO purchase_order_items (purchase_order_id, product_id, warehouse_id, qty, price, line_total)
-                                      VALUES (?,?,?,?,?,?)");
-            foreach ($items as $it) {
-                $insItem->execute([$id, (int)$it['product_id'], (int)$it['warehouse_id'], (int)$it['qty'], (float)$it['price'], (float)$it['line_total']]);
+
+            // again: no received_qty column here
+            $insItem = $pdo->prepare("
+                INSERT INTO purchase_order_items
+                    (purchase_order_id, product_id, warehouse_id, qty, price, line_total)
+                VALUES (?,?,?,?,?,?)
+            ");
+            foreach ($items as $row) {
+                $insItem->execute([
+                    $id,
+                    (int)$row['product_id'],
+                    (int)$row['warehouse_id'],
+                    (int)$row['qty'],
+                    (float)$row['price'],
+                    (float)$row['line_total']
+                ]);
             }
 
             $pdo->commit();
             flash_set('success','PO updated.');
             redirect('/purchaseorders/show?id='.$id);
+
         } catch (\Throwable $e) {
-            $pdo->rollBack();
+            try { $pdo = DB::conn(); if ($pdo->inTransaction()) { $pdo->rollBack(); } } catch (\Throwable $ignore) {}
             flash_set('error','Update failed: '.$e->getMessage());
             redirect('/purchaseorders/edit?id='.$id);
         }
@@ -167,8 +227,7 @@ final class PurchaseOrdersController extends Controller
         redirect('/purchaseorders/show?id='.$id);
     }
 
-    public function printpage(): void
-    {
+    public function printpage(): void {
         require_auth();
         $id = (int)($_GET['id'] ?? 0);
         $includeNotes = isset($_GET['include_notes']) && $_GET['include_notes'] === '1';
@@ -182,10 +241,10 @@ final class PurchaseOrdersController extends Controller
     }
 
     private function readItems(): array {
-        $rows = [];
-        $pids = $_POST['item_product_id'] ?? [];
-        $wids = $_POST['item_warehouse_id'] ?? [];
-        $qtys = $_POST['item_qty'] ?? [];
+        $rows   = [];
+        $pids   = $_POST['item_product_id'] ?? [];
+        $wids   = $_POST['item_warehouse_id'] ?? [];
+        $qtys   = $_POST['item_qty'] ?? [];
         $prices = $_POST['item_price'] ?? [];
         $n = max(count($pids), count($wids), count($qtys), count($prices));
         for ($i=0; $i<$n; $i++) {
@@ -199,19 +258,19 @@ final class PurchaseOrdersController extends Controller
         }
         return $rows;
     }
-	
-	public function markclosed(): void {
-    require_auth();
-    if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseorders'); }
-    $id = (int)($_POST['id'] ?? 0);
-    $po = \App\Models\PurchaseOrder::find($id);
-    if (!$po) { flash_set('error','Not found.'); redirect('/purchaseorders'); }
-    if (($po['status'] ?? '') !== 'received') {
-        flash_set('error','Only received POs can be closed.');
+
+    public function markclosed(): void {
+        require_auth();
+        if (!verify_csrf_post()) { flash_set('error','Invalid session.'); redirect('/purchaseorders'); }
+        $id = (int)($_POST['id'] ?? 0);
+        $po = PurchaseOrder::find($id);
+        if (!$po) { flash_set('error','Not found.'); redirect('/purchaseorders'); }
+        if (($po['status'] ?? '') !== 'received') {
+            flash_set('error','Only received POs can be closed.');
+            redirect('/purchaseorders/show?id='.$id);
+        }
+        DB::conn()->prepare("UPDATE purchase_orders SET status='closed' WHERE id=?")->execute([$id]);
+        flash_set('success','PO closed.');
         redirect('/purchaseorders/show?id='.$id);
     }
-    \App\Core\DB::conn()->prepare("UPDATE purchase_orders SET status='closed' WHERE id=?")->execute([$id]);
-    flash_set('success','PO closed.');
-    redirect('/purchaseorders/show?id='.$id);
-}
 }

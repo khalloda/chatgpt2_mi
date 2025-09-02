@@ -1,0 +1,302 @@
+/* File: /assets/css/system.css
+ * Purpose: App-wide layout & UI polish on top of Bootstrap 5
+ * Notes:
+ *  - Uses variables from /assets/css/tokens.css (colors, fonts, radius, shadow).
+ *  - RTL-aware via logical properties (margin/padding inset-inline-start/end).
+ *  - Keep this file lightweight; component-specific rules live in tablekit.css, etc.
+ */
+
+/* =========================
+   0) Base & Typography
+   ========================= */
+:root{
+  /* fallbacks in case tokens.css didn't load */
+  --color-bg: #f7f7f9;
+  --color-surface: #ffffff;
+  --color-text: #1f2937;
+  --color-primary: #027381;
+  --color-accent: #FFC23D;
+  --radius: 12px;
+  --shadow: 0 8px 20px rgba(0,0,0,.06);
+
+  --container-max: 1440px;
+  --sidebar-w: 280px;
+  --sidebar-w-lg: 300px;
+}
+
+html, body { height: 100%; }
+body{
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings: rely on tokens.css font stacks */
+h1, h2, h3, h4, h5, h6 { letter-spacing: .2px; }
+
+/* Links */
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Buttons: brand primary */
+.btn-primary{
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--color-primary);
+  --bs-btn-border-color: var(--color-primary);
+  --bs-btn-hover-bg: color-mix(in oklab, var(--color-primary) 92%, black);
+  --bs-btn-hover-border-color: color-mix(in oklab, var(--color-primary) 88%, black);
+  --bs-btn-active-bg: color-mix(in oklab, var(--color-primary) 85%, black);
+  --bs-btn-active-border-color: color-mix(in oklab, var(--color-primary) 80%, black);
+}
+
+/* Subtle success/danger (used for badges/toasts) */
+.bg-success-subtle { background: #e6fff2 !important; color: #0f5132 !important; }
+.bg-danger-subtle  { background: #ffeeef !important; color: #842029 !important; }
+
+/* Card polish */
+.card{
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  background: var(--color-surface);
+}
+.card-header{
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  background: transparent;
+}
+.card-footer{
+  border-top: 1px solid rgba(0,0,0,.06);
+  background: transparent;
+}
+
+/* Containers */
+.container-xxl, .container-xl, .container-lg{
+  max-width: var(--container-max);
+}
+
+/* =========================
+   1) App Shell (Navbar + Sidebar + Content)
+   ========================= */
+.navbar.sticky-top{
+  box-shadow: 0 4px 12px rgba(0,0,0,.04);
+  background: #fff;
+}
+
+/* Two-column app shell: sidebar + main */
+.app-shell{ min-height: calc(100vh - 56px); } /* minus navbar height */
+.app-main{ padding: 1rem; }
+@media (min-width: 768px){
+  .app-main{ padding: 1.25rem 1.25rem 2rem 1.25rem; }
+}
+@media (min-width: 1200px){
+  .app-main{ padding: 1.5rem 1.75rem 2.25rem 1.75rem; }
+}
+
+/* Sidebar wrapper (we include the markup from partials/sidebar.php) */
+aside > .sidebar{
+  width: 100%;
+}
+
+/* Sidebar internals (moved from inline styles in sidebar.php) */
+.sidebar { min-height: calc(100vh - 56px); background: var(--color-surface); }
+.sidebar .nav-link{ padding: .45rem .75rem; border-radius: .5rem; color: inherit; }
+.sidebar .nav-link:hover{ background: rgba(2,115,129,.06); text-decoration: none; }
+.sidebar .nav-link.active{
+  background: color-mix(in oklab, var(--color-primary) 12%, white);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.sidebar .btn-toggle{
+  width:100%; background:transparent; border:0; padding:.5rem .75rem; text-align:start;
+}
+.sidebar .btn-toggle:hover{ background: rgba(2,115,129,.06); }
+.sidebar .btn-toggle .ti{ vertical-align: -2px; }
+.sidebar .btn-toggle-nav{ padding: .25rem 0 .5rem 2.25rem; }
+
+/* RTL mirror for sidebar border */
+html[dir="rtl"] .border-end{ border-inline-end: 1px solid rgba(0,0,0,.06) !important; border-right: 0 !important; }
+html[dir="rtl"] .sidebar .btn-toggle-nav{ padding: .25rem 2.25rem .5rem 0; }
+
+/* Breadcrumbs & page header */
+.page-header{
+  display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+  margin-block-end: 1rem;
+}
+.page-header .title{ font-size: clamp(1.1rem, 1.2vw + .8rem, 1.6rem); font-weight: 600; }
+.breadcrumb{
+  --bs-breadcrumb-divider-color: #9ca3af;
+  --bs-breadcrumb-item-active-color: #6b7280;
+}
+
+/* =========================
+   2) Toolbar, KPIs, Empty states
+   ========================= */
+.toolbar{
+  display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+  margin-block: .5rem 1rem;
+}
+.toolbar .search{
+  min-width: 220px;
+}
+.kpis{
+  display:grid; gap:1rem;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+@media (min-width: 992px){
+  .kpis{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (min-width: 1400px){
+  .kpis{ grid-template-columns: repeat(6, minmax(0,1fr)); }
+}
+.kpi{
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+.kpi .label{ color:#6b7280; font-size:.85rem; }
+.kpi .value{ font-size: clamp(1.1rem, 1.6vw, 1.4rem); font-weight:700; }
+
+/* Empty state */
+.empty{
+  border: 1px dashed rgba(0,0,0,.15);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  color:#6b7280;
+}
+.empty .ti{ font-size: 2rem; opacity: .6; }
+
+/* =========================
+   3) Forms & Inputs
+   ========================= */
+.form-label{ font-weight: 500; }
+.form-text{ color:#6b7280; }
+.input-group .form-control:focus,
+.form-control:focus,
+.form-select:focus{
+  box-shadow: 0 0 0 .2rem color-mix(in oklab, var(--color-primary) 20%, transparent);
+  border-color: color-mix(in oklab, var(--color-primary) 50%, #cbd5e1);
+}
+.required::after{
+  content: " *"; color:#ef4444; font-weight:700;
+}
+
+/* Compact form spacing (used inside modals or dense pages) */
+.form-compact .row > [class^="col-"]{ margin-block: .35rem; }
+
+/* =========================
+   4) Tables (generic polish)
+   NOTE: pinned columns & exports live in tablekit.css/js
+   ========================= */
+.table thead th{
+  background: #fafafa;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.table tbody td{ border-color: rgba(0,0,0,.06); }
+.table-hover tbody tr:hover{ background: #f9fbfc; }
+
+/* Align numeric text to the end using logical properties */
+td.num, th.num { text-align: end; }
+
+/* Status badges */
+.badge-low{ background:#FFEEF0; color:#C41E32; }
+.badge-ok { background:#E6FFFA; color:#027381; }
+
+/* Pagination spacing */
+.pagination{ --bs-pagination-focus-box-shadow: 0 0 0 .2rem rgba(2,115,129,.2); }
+
+/* =========================
+   5) Alerts, Toasts, Modals
+   ========================= */
+.alert{ border:0; border-radius: .75rem; box-shadow: var(--shadow); }
+.toast{ border-radius: .75rem; box-shadow: var(--shadow); }
+
+/* =========================
+   6) Utilities (logical + small helpers)
+   ========================= */
+.shadow-soft{ box-shadow: var(--shadow) !important; }
+.rounded-2xl{ border-radius: calc(var(--radius) + 6px) !important; }
+.text-muted-soft{ color:#6b7280 !important; }
+
+.gap-6{ gap: 1.5rem !important; }
+.p-inline-2{ padding-inline: .5rem !important; }
+.p-inline-3{ padding-inline: .75rem !important; }
+.m-inline-auto{ margin-inline: auto !important; }
+
+/* Right-to-left logical mirrors for common spacing when needed */
+html[dir="rtl"] .ms-auto{ margin-inline-start: 0 !important; margin-inline-end: auto !important; }
+html[dir="rtl"] .me-2{ margin-inline-end: 0 !important; margin-inline-start: .5rem !important; }
+html[dir="rtl"] .me-3{ margin-inline-end: 0 !important; margin-inline-start: 1rem !important; }
+
+/* =========================
+   7) Print (A4-friendly)
+   ========================= */
+@media print{
+  body{ background: #fff !important; }
+  .navbar, .sidebar, .btn, .alert, .toast, .toolbar, .pagination, .d-print-none{ display:none !important; }
+  .app-main{ padding: 0 !important; }
+  .card{ box-shadow: none !important; border: 1px solid #ddd; }
+  .table thead th{ background: #fff !important; }
+  /* Page breaks for documents */
+  .page-break{ break-after: page; }
+}
+
+/* =========================
+   8) Header search tweak (top navbar)
+   ========================= */
+.navbar .input-group .form-control{
+  min-width: 220px;
+}
+@media (min-width: 992px){
+  .navbar .input-group .form-control{ min-width: 320px; }
+}
+
+/* =========================
+   9) Badges for common statuses
+   ========================= */
+.badge-status{ border-radius: 999px; font-weight: 600; padding: .35rem .6rem; }
+.badge-draft{ background:#eef2ff; color:#3730a3; }
+.badge-issued{ background:#e0f2fe; color:#075985; }
+.badge-paid{ background:#dcfce7; color:#166534; }
+.badge-partpaid{ background:#fef9c3; color:#854d0e; }
+.badge-overdue{ background:#fee2e2; color:#991b1b; }
+
+.badge-open{ background:#e9f5ff; color:#1e40af; }
+.badge-closed{ background:#f3f4f6; color:#374151; }
+.badge-cancelled{ background:#fde2e4; color:#9f1239; }
+.badge-partial-recv{ background:#fff7ed; color:#9a3412; }
+
+/* =========================
+   10) Chips & pills (filters/tags)
+   ========================= */
+.chip{
+  border:1px solid rgba(0,0,0,.08);
+  background:#fff; border-radius: 999px;
+  padding: .25rem .6rem; display:inline-flex; align-items:center; gap:.35rem;
+}
+.chip .dot{ width:.5rem; height:.5rem; border-radius:999px; background:#9ca3af; }
+.chip-primary{ border-color: color-mix(in oklab, var(--color-primary) 25%, #0000); background: color-mix(in oklab, var(--color-primary) 8%, white); color: var(--color-primary); }
+
+/* =========================
+   11) Breadcrumb separators (subtle)
+   ========================= */
+.breadcrumb-item + .breadcrumb-item::before{
+  color: #9ca3af;
+}
+
+/* =========================
+   12) Offcanvas (if used for mobile sidebar)
+   ========================= */
+.offcanvas{ border-radius: 14px 14px 0 0; }
+
+/* =========================
+   13) Footer (optional)
+   ========================= */
+.app-footer{
+  color:#6b7280; font-size:.9rem; padding: .75rem 1rem; text-align:center;
+}
+
+/* End of system.css */
