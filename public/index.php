@@ -53,7 +53,9 @@ $router->post('/warehouses', 'warehousescontroller@store');
 $router->get('/warehouses/edit', 'warehousescontroller@edit');
 $router->post('/warehouses/update', 'warehousescontroller@update');
 $router->post('/warehouses/delete', 'warehousescontroller@destroy');
-$router->get('/warehouses/show', 'warehousescontroller@show');
+$router->get('/warehouses/show', 'warehousescontroller@detail');
+$router->get('/warehouses/detail', 'warehousescontroller@detail');
+$router->get('/warehouses/exportcsv','warehousescontroller@exportcsv');
 
 // products
 $router->get('/products', 'productscontroller@index');

@@ -41,15 +41,15 @@ $h = fn($v)=>htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
               <td class="text-end"><?= number_format((float)$w['on_hand'], 2) ?></td>
               <td class="text-end"><?= number_format((float)$w['reserved'], 2) ?></td>
               <td class="text-end"><?= number_format((float)$w['value'], 2) ?></td>
-              <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" href="<?= base_url('/warehouses/show?id='.(int)$w['id']) ?>">View</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('/warehouses/edit?id='.(int)$w['id']) ?>">Edit</a>
-                <form method="post" action="<?= base_url('/warehouses/delete') ?>" style="display:inline" onsubmit="return confirm('Delete this warehouse?');">
-                  <?= csrf_field() ?>
-                  <input type="hidden" name="id" value="<?= (int)$w['id'] ?>">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                </form>
-              </td>
+              <td style="border-bottom:1px solid #f2f2f4;padding:8px;white-space:nowrap;">
+  <a href="<?= base_url('/warehouses/detail?id='.(int)$w['id']) ?>">View</a> &nbsp;|&nbsp;
+  <a href="<?= base_url('/warehouses/edit?id='.(int)$w['id']) ?>">Edit</a> &nbsp;|&nbsp;
+  <form method="post" action="<?= base_url('/warehouses/delete') ?>" style="display:inline" onsubmit="return confirm('Delete this warehouse?');">
+    <?= csrf_field() ?>
+    <input type="hidden" name="id" value="<?= (int)$w['id'] ?>">
+    <button type="submit" style="background:none;border:none;color:#c00;cursor:pointer;">Delete</button>
+  </form>
+</td>
             </tr>
           <?php endforeach; ?>
           <?php if (!$items): ?>
