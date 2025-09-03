@@ -2,7 +2,7 @@ name: Build Code Dump
 
 on:
   push:
-    branches: [ "feature/cogs-weighted-avg" ]   # change if your default branch is different
+    branches: [ "feature/ReceiveonPurchaseInvoice(stock+avg_cost+ledger)" ]   # change if your default branch is different
   workflow_dispatch: {}     # lets you run it manually from the Actions tab
 
 jobs:
