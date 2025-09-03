@@ -6,9 +6,9 @@ _As of: 2025-08-31 (Africa/Cairo)_
 Core sales and purchasing flows are live and tested. Printing, notes, stock changes, and both AR (customer) & AP (supplier) payments are in place. System is stable on GoDaddy (Plesk Windows).
 
 ## 2) what’s done (✅)
-- MVC bootstrap, auth, csrf, flash
-- Master data: clients, suppliers, products, categories, warehouses, makes, models
-- Inventory engine: product_stocks (on-hand & reserved)
+- MVC bootstrap, auth, csrf, flash.
+- Master data: clients, suppliers, products, categories, warehouses, makes, models.
+- Inventory engine: product_stocks (on-hand & reserved).
 - **Sales (AR)**:
   - Quotes → Orders → Invoices
   - Insufficient stock guard on convert
