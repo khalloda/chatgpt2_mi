@@ -5,7 +5,7 @@
  * Notes:
  *  - Keep keys stable; other locales (e.g., ar.php) must mirror this structure.
  *  - Use t('key.path') in PHP views/controllers.
- *  - Do NOT include secrets here.
+ *  - Do NOT include   ffg secrets here.
  */
 return [
 
